@@ -80,6 +80,15 @@
   .sum-blink td { animation: sumRowBlink 0.9s ease-in-out 4; }
 
   .note{ margin-top:8px; font-size:13px; color:#334155; }
+
+/* Live hint-box en markering voor verkeerde shift-waarden (≠ 0) */
+.live-hints{
+  background:#fff7ed; border:1px solid #fed7aa;
+  padding:8px 10px; border-radius:8px; margin-top:8px;
+  font-size:14px; color:#7c2d12;
+}
+.wrong-shift input{ background:#fef3c7 !important; } /* zacht oranje */
+  
 </style>
 </head>
 <body>
@@ -614,6 +623,90 @@ window.addEventListener('DOMContentLoaded', ()=>{
   updateSwapVisibility();
   newExercise();
 });
+
+// Klein hulpmiddel voor nette tekst bij ×10^k
+function _placeLabel(k){
+  if (k === 1) return 'tiental';
+  if (k === 2) return 'honderdtal';
+  if (k === 3) return 'duizendtal';
+  return `×10^${k}`;
+}
+
+/**
+ * Toon tip wanneer in de rechter shift-vakken (kolommen cols-k..cols-1)
+ * een waarde ≠ '0' wordt ingevuld. Markeer die cellen zacht oranje.
+ * – Verwacht dat de tabel #grid-table bestaat met:
+ *   data-cols = totaal kolommen
+ *   data-b    = string met de tweede factor (digits only) → bLen = lengte
+ * – Inputs hebben data-r (0..bLen-1 voor tussenproducten; som= bLen) en data-c (0..cols-1).
+ */
+function validateShiftZerosOnly() {
+  const table = document.getElementById('grid-table');
+  const hintsBox = document.getElementById('live-hints');
+  if (!table || !hintsBox) return;
+
+  const cols = Number(table.getAttribute('data-cols'));
+  const bStr = table.getAttribute('data-b') || '';
+  const bLen = bStr.length;
+
+  // Oude hint-markeringen opruimen
+  table.querySelectorAll('td').forEach(td => td.classList.remove('wrong-shift'));
+
+  const messages = [];
+
+  // Loop over alle tussenproduct-rijen r = 0..bLen-1 (r=0 is onderste rij)
+  for (let r = 0; r < bLen; r++) {
+    const k = r; // aantal shifts rechts
+    if (k <= 0) continue; // geen shift-positie → niets te controleren
+
+    let anyWrongHere = false;
+
+    // Rechter k kolommen: c = cols-k .. cols-1
+    for (let c = cols - k; c < cols; c++) {
+      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+      if (!inp) continue;
+      const val = (inp.value || '').trim();
+
+      // Tip alleen als er expliciet iets ≠ '0' staat
+      if (val !== '' && val !== '0') {
+        anyWrongHere = true;
+        const td = inp.parentElement;
+        if (td) td.classList.add('wrong-shift');
+      }
+    }
+
+    if (anyWrongHere) {
+      messages.push(
+        `Rij ${r + 1}: rechts horen ${k} nul(len) te staan, <b>omdat je vermenigvuldigt met een ${_placeLabel(k)}</b>.`
+      );
+    }
+  }
+
+  if (messages.length) {
+    hintsBox.style.display = 'block';
+    hintsBox.innerHTML = '🟠 <b>Tip:</b> ' + messages.join(' ');
+  } else {
+    hintsBox.style.display = 'none';
+    hintsBox.innerHTML = '';
+  }
+}
+
+// ✔ Live tijdens typen updaten
+(function wireShiftHints(){
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+
+  // 1) Her-evalueer bij elke wijziging in het rooster
+  grid.addEventListener('input', (e) => {
+    if (e.target && e.target.tagName === 'INPUT') validateShiftZerosOnly();
+  });
+
+  // 2) Na (opnieuw) opbouwen van het rooster meteen eerste evaluatie
+  //    → Roep deze ook aan in jouw buildGrid() zodra je de tabel hebt gezet,
+  //      of hieronder een kleine vertraging om de eerste render mee te pakken.
+  setTimeout(validateShiftZerosOnly, 0);
+})();
+  
 </script>
 </body>
 </html>
