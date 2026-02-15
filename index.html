@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-<body>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Oefenen: Vermenigvuldigen (natuurlijk & decimaal)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Oefenen: Vermenigvuldigen</title>
+  
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111; --muted:#4b5563;
@@ -109,12 +109,6 @@ details.diff {
 </body>
   <!-- AUTO-BIND FIX: plak dit net voor </body> -->
 <script>
-(function(){
-  // Log JS-fouten zodat we meteen zien wat er mis is (F12 -> Console)
-  window.onerror = function (message, source, lineno, colno, error) {
-    console.log("JS-fout:", message, "@", source, lineno + ":" + colno);
-  };
-
   window.addEventListener("DOMContentLoaded", function(){
     try {
       // Moeilijkheidsopties klikbaar maken (custom dropdown)
@@ -160,6 +154,7 @@ details.diff {
     }
   });
 })();
+</script>
 <!-- PATCH: alias + definitieve event-binding voor cijferen-tool (vervang je bestaande patch door dit blok) -->
 <script>
 (function(){
@@ -302,7 +297,6 @@ window.addEventListener('DOMContentLoaded', () => {
   if (typeof window.newSet === 'function') window.newSet();
 });
 </script> 
-</script>
 <div class="wrap">
   <h1>Vermenigvuldigen — oefenen met cijferen</h1>
   <p class="lead">Natuurlijke én decimale getallen. Eerst schatten, dan cijferen. Rooster zonder komma’s, komma alleen in het eindantwoord.</p>
