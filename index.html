@@ -35,20 +35,95 @@ button{
 
 .task{ font-size:22px; font-weight:700; margin:10px 0; }
 
-/* --- Rooster (cijferen) --- */
-.grid{ border-collapse:collapse; margin-top:8px; }
-.grid td{
-  border:1px solid var(--line);
-  width:32px; height:36px; text-align:center; vertical-align:middle;
+<script>
+function buildGrid(item){
+  // Lengtes zonder komma
+  const aDigits = item.a.raw.split('').map(Number); // bv. "1234" -> [1,2,3,4]
+  const bDigits = item.b.raw.split('').map(Number);
+  const aLen = aDigits.length;
+  const bLen = bDigits.length;
+
+  // Kolommen:
+  // - we voorzien ruimte voor shifts (bLen-1)
+  // - rechts uitlijnen is het belangrijkst voor cijferen
+  // - extra kolom voor mogelijke carry links kan later nog toegevoegd worden
+  const cols = Math.max(aLen, bLen) + (bLen - 1);
+
+  // Helper om een rij-cellen te maken (leeg of met inputs/spans)
+  const td = (html, extraClass='') => `<td class="${extraClass}">${html||''}</td>`;
+  const emptyRow = (n) => Array.from({length:n}).map(()=>td('')).join('');
+
+  // 1) Factoren (2 rijen), rechts uitgelijnd, readonly cijfers (zonder komma)
+  const rowWithNumber = (digits, label) => {
+    const blanks = cols - digits.length;
+    const cells = [
+      td(label, 'label'),
+      ...Array.from({length: blanks}).map(()=>td('')),
+      ...digits.map(d => td(`<input class="readonly" value="${d}" readonly>`,''))
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  };
+
+  // 2) Separator-rij: we renderen lege cellen maar met dikke top-border
+  const separatorRowTop = () => {
+    const cells = [ td('', 'label thick-top') ]
+      .concat(Array.from({length: cols}).map(()=>td('', 'thick-top')));
+    return `<tr>${cells.join('')}</tr>`;
+  };
+
+  // 3) Tussenproducten: bLen rijen, elk met shift naar rechts
+  //    Reken-cellen zijn gewoon <input> waar leerlingen per cijfer kunnen invullen
+  const partialRow = (rowIndexFromBottom) => {
+    // rowIndexFromBottom: 0 = onderste rij (eenheden van b), 1 = tientallen, ...
+    const shift = rowIndexFromBottom; // rechts meer blanco cellen
+    const workCells = cols - shift;   // aantal invulbare cellen (rest rechts blank)
+    const cells = [
+      td(`rij ${rowIndexFromBottom+1}`, 'label'),
+      ...Array.from({length: workCells}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)),
+      ...Array.from({length: shift}).map(()=>td(''))
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  };
+
+  // 4) Tweede separator
+  const separatorRowTop2 = separatorRowTop;
+
+  // 5) Som-rij (eindsom): rechts uitgelijnd invulbare cellen
+  const sumRow = () => {
+    const cells = [
+      td('som','label'),
+      ...Array.from({length: cols}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`,''))
+    ];
+    return `<tr>${cells.join('')}</tr>`;
+  };
+
+  // Bouw de volledige tabel
+  let html = `<table class="grid">`;
+
+  // Twee operand-rijen
+  html += rowWithNumber(aDigits, '&times; a'); // label links: × a
+  html += rowWithNumber(bDigits, '&times; b'); // label links: × b
+
+  // Dikke lijn
+  html += separatorRowTop();
+
+  // Tussenproducten - van onder naar boven tonen is klassiek; we tonen van boven naar beneden
+  // met rowIndexFromBottom 0..bLen-1
+  for (let k = 0; k < bLen; k++){
+    html += partialRow(k);
+  }
+
+  // Dikke lijn
+  html += separatorRowTop2();
+
+  // Som-rij
+  html += sumRow();
+
+  html += `</table>`;
+
+  document.getElementById("grid").innerHTML = html;
 }
-.grid input{
-  width:100%; height:100%;
-  border:none; text-align:center; font-size:16px; outline:none;
-}
-.grid .label{ width:54px; background:#f8fafc; font-weight:700; }
-.grid .thick-top{ border-top:3px solid #111; }
-.grid .thick-bottom{ border-bottom:3px solid #111; }
-.grid .readonly{ background:#f3f4f6; color:#334155; }
+</script>
   
 .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 
