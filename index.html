@@ -141,7 +141,7 @@ function newExercise(){
    Rijen:
    1) factor A (readonly, rechts uitgelijnd)
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
-   3) bLen rijen tussenproducten (invulbaar), met shift
+   3) bLen rijen tussenproducten (invulbaar), met shift — en nu zijn ook de shift-vakjes RECHTS invulbaar (voor 0)
    4) som-rij (invulbaar), met dikke lijn erboven
 */
 function buildGrid(item){
@@ -159,33 +159,35 @@ function buildGrid(item){
   // Rij 1: factor A (rechts uitgelijnd)
   const rowA = (() => {
     const blanks = cols - aLen;
-    const cells = emptyCells(blanks) + aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    const cells = emptyCells(blanks)
+      + aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr>${cells}</tr>`;
   })();
 
   // Rij 2: factor B (rechts uitgelijnd) + dikke lijn eronder
   const rowB = (() => {
     const blanks = cols - bLen;
-    const cells = emptyCells(blanks) + bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    const cells = emptyCells(blanks)
+      + bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr class="thick-after">${cells}</tr>`;
   })();
 
-  // bLen rijen: tussenproducten (allemaal invulbaar), met shift naar rechts
+  // bLen rijen: tussenproducten — nu met invulbare shift-vakjes rechts (zodat leerlingen 0 kunnen zetten)
   let partials = '';
   for (let k = 0; k < bLen; k++){
-    // k=0 (onderste tussenproduct): geen lege cellen rechts, k=1: 1 lege cel rechts, ...
-    const blanksLeft  = cols - aLen - k; // zodat invulblok rechts uitlijnt over kolommen
-    const blanksRight = k;
-    const row =
-      emptyCells(blanksLeft) +
-      Array.from({length:aLen}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('') +
-      emptyCells(blanksRight);
+    const blanksLeft  = cols - aLen - k; // links houden we leeg om rechts uit te lijnen
+    const coreInputs  = Array.from({length:aLen})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+    const shiftInputs = Array.from({length:k})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+    const row = emptyCells(blanksLeft) + coreInputs + shiftInputs;
     partials += `<tr>${row}</tr>`;
   }
 
   // Som-rij: invulbaar, dikke lijn erboven
   const rowSum = (() => {
-    const cells = Array.from({length:cols}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+    const cells = Array.from({length:cols})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
     return `<tr class="thick-before">${cells}</tr>`;
   })();
 
