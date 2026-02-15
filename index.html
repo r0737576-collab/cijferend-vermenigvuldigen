@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (carry-kolom links)</title>
+<title>Vermenigvuldigen — cijferen (linkse cellen invulbaar)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -32,13 +32,19 @@
     border:1px solid var(--line);
     width:32px; height:36px; text-align:center; vertical-align:middle;
   }
-  /* inputs zonder eigen rand -> tabel vormt de vakjes */
+  /* inputs zonder eigen rand -> tabel vormt de hokjes */
   .grid input{
     width:100%; height:100%;
     border:none; outline:none;
     background:transparent;
     text-align:center; font-size:16px;
   }
+  /* linkse invulbare cellen voor 'onthouden' (carry/klad) lichtgrijs */
+  .grid input.leftpad{
+    background:#f1f5f9; /* lichtgrijs */
+    color:#0f172a;
+  }
+
   /* dikke lijnen op rij-niveau (geen extra scheidingsrij) */
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
@@ -46,12 +52,14 @@
   .ok{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .err{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .warn{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
+
+  .note{ margin-top:8px; font-size:13px; color:#334155; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Vermenigvuldigen — cijferen</h1>
-  <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij. <b>Nu met linkse carry-kolom.</b></p>
+  <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij.</p>
 
   <div class="card">
     <div class="bar">
@@ -67,6 +75,7 @@
     </div>
 
     <div id="grid"></div>
+    <div id="grid-note" class="note"></div>
 
     <div id="feedback"></div>
   </div>
@@ -138,12 +147,14 @@ function newExercise(){
 }
 
 /* ===== Rooster =====
-   Kolommen: (carry links) + aLen + (shift) → we kiezen cols = aLen + bLen + 1
+   Kolommen: (carry/klad links) + aLen + (shift rechts) → cols = aLen + bLen + 1
    Rijen:
    1) factor A (readonly, rechts uitgelijnd)
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
-   3) bLen rijen tussenproducten (invulbaar), met shift — inclusief linkse carry-invulvak
-   4) som-rij (invulbaar), met dikke lijn erboven — inclusief linkse carry-invulvak
+   3) bLen rijen tussenproducten (invulbaar), met shift
+      - alle linkse lege cellen = invulbaar (lichtgrijs) voor 'onthouden'
+      - linkse carry‑kolom = invulbaar (lichtgrijs)
+   4) som-rij (invulbaar), met dikke lijn erboven (ook carry links invulbaar)
 */
 function buildGrid(item){
   const aDigits = item.a.raw.split('').map(Number);
@@ -151,16 +162,17 @@ function buildGrid(item){
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  // +1 kolom voor linkse carry in tussenproducten/som
+  // +1 kolom voor linkse carry/klad
   const cols = aLen + bLen + 1;
 
   const td = (html='') => `<td>${html}</td>`;
-  const emptyCells = n => Array.from({length:n}).map(()=>td('')).join('');
+  const leftCell = () => td(`<input class="leftpad" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
 
   // Rij 1: factor A (rechts uitgelijnd over alle kolommen)
   const rowA = (() => {
     const blanks = cols - aLen;
-    const cells = emptyCells(blanks) +
+    const cells =
+      Array.from({length:blanks}).map(()=>td('')).join('') + // factor-rijen houden we links leeg (geen klad)
       aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr>${cells}</tr>`;
   })();
@@ -168,28 +180,32 @@ function buildGrid(item){
   // Rij 2: factor B (rechts uitgelijnd) + dikke lijn eronder
   const rowB = (() => {
     const blanks = cols - bLen;
-    const cells = emptyCells(blanks) +
+    const cells =
+      Array.from({length:blanks}).map(()=>td('')).join('') +
       bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr class="thick-after">${cells}</tr>`;
   })();
 
   // bLen rijen tussenproducten:
-  // links: (cols - (1 + aLen + k)) lege cellen, dan 1 carry-input, dan aLen inputs, dan k shift-inputs
+  // links: (cols - (1 + aLen + k)) invulbare grijze cellen
+  // dan 1 carry‑input (grijs), dan aLen kern‑inputs, dan k shift‑inputs (rechts, invulbaar)
   let partials = '';
   for (let k = 0; k < bLen; k++){
     const blanksLeft  = cols - (1 + aLen + k);
-    const carryInput  = td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+
+    const leftPads    = Array.from({length:blanksLeft}).map(()=>leftCell()).join('');
+    const carryInput  = td(`<input class="leftpad" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
     const coreInputs  = Array.from({length:aLen})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
     const shiftInputs = Array.from({length:k})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    const row = emptyCells(blanksLeft) + carryInput + coreInputs + shiftInputs;
-    partials += `<tr>${row}</tr>`;
+
+    partials += `<tr>${leftPads}${carryInput}${coreInputs}${shiftInputs}</tr>`;
   }
 
-  // Som-rij: dikke lijn erboven, zelfde structuur: 1 carry + (cols-1) invulbaar
+  // Som-rij: dikke lijn erboven, links 1 carry (grijs) + rest invulbaar
   const rowSum = (() => {
-    const carryInput = td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+    const carryInput = td(`<input class="leftpad" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
     const restInputs = Array.from({length:cols-1})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
     return `<tr class="thick-before">${carryInput}${restInputs}</tr>`;
@@ -204,6 +220,10 @@ function buildGrid(item){
      </table>`;
 
   document.getElementById("grid").innerHTML = html;
+
+  // Nota onder de tabel
+  document.getElementById("grid-note").textContent =
+    'Opmerking: In de lichtgrijze vakjes links kun je tijdelijk de cijfers noteren die je moet “onthouden” (meeneemcijfers).';
 }
 
 /* ===== Nakijken (alleen eindantwoord) ===== */
@@ -234,8 +254,5 @@ window.addEventListener('DOMContentLoaded', ()=>{
   newExercise();
 });
 </script>
-</body>
-</html>
-
 </body>
 </html>
