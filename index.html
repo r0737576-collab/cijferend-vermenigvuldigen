@@ -342,12 +342,11 @@ function swapOperands(){
 
 /* ===== Nakijken =====
    - Early stop bij leeg antwoord (niets rood/knipperen).
-   - Eindantwoord evaluatie.
+   - Eindantwoord evaluatie (OK / kommafout / fout).
    - Som-rij vs antwoord (komma negeren):
-       • Als EINDANTWOORD EXACT JUIST → geen melding/knipper (logisch: alles is ok).
-       • Als NIET EXACT → als som-rij ≠ antwoord → melding + knipper en STOP (geen per-cel checks).
-       • Als NIET EXACT maar som-rij == antwoord → per-cel checks uitvoeren.
-   - Tussenstappen: core / shift / som-rij per cel.
+       • Als EINDANTWOORD EXACT JUIST → OK tonen, daarna per-cel checks.
+       • Als NIET EXACT en som-rij ≠ antwoord → korte melding + som-rij knipperen → STOP (geen per-cel checks, geen juist antwoord tonen).
+       • Als NIET EXACT maar som-rij == antwoord → melding (kommafout of fout) + per-cel checks + dan pas juist antwoord tonen.
 */
 function checkAnswer(){
   if (!current) return;
@@ -360,6 +359,7 @@ function checkAnswer(){
 
   // 1) Eindantwoord
   const correct = formatWithComma(current.productRaw, current.productDecs);
+  const correctDigits = onlyDigits(correct);
   const userRaw = document.getElementById('answer').value;
   const user = normalizeStudent(userRaw);
 
@@ -370,27 +370,15 @@ function checkAnswer(){
   }
 
   const userDigits = onlyDigits(user);
-  const correctNorm = normalizeStudent(correct);
-  const isExact = normalizeStudent(user) === correctNorm;
-  const isDigitsOnly = userDigits === onlyDigits(correct);
+  const isExact = normalizeStudent(user) === normalizeStudent(correct);
+  const isDigitsOnly = userDigits === correctDigits;
 
-  let fbHtml = '';
-  if (isExact){
-    fbHtml += `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
-    fbEl.innerHTML = fbHtml;
-    // Bij exact correct: we voeren alsnog per-cel checks uit (alles zou goed moeten zijn)
-    runPerCellChecks();
-    return;
-  } else if (isDigitsOnly){
-    fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
-  } else {
-    fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
-  }
-
-  // 1b) Som-rij vs antwoord (komma genegeerd) — alleen relevant als niet exact correct
+  // 1a) Bepaal som-rij digits (rechts uitgelijnd door de leerling)
   const table = document.getElementById('grid-table');
+  let sumStr = '';
+  let rSum = null, cols = null;
   if (table){
-    const cols = Number(table.getAttribute('data-cols'));
+    cols = Number(table.getAttribute('data-cols'));
     // som-rij = hoogste data-r
     const inputs = table.querySelectorAll('input[data-r]');
     let maxR = -Infinity;
@@ -398,27 +386,43 @@ function checkAnswer(){
       const rv = Number(inp.getAttribute('data-r'));
       if (!Number.isNaN(rv) && rv > maxR) maxR = rv;
     });
-    const rSum = maxR;
+    rSum = maxR;
 
-    const sumDigitsArr = [];
-    for (let c = 1; c < cols; c++){
+    const parts = [];
+    for (let c = 1; c < cols; c++){ // kolom 0 (grijs) negeren
       const inp = table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`);
-      if (inp) sumDigitsArr.push((inp.value || '').replace(/[^\d]/g, ''));
+      if (inp) parts.push((inp.value||'').replace(/[^\d]/g,''));
     }
-    const sumStr = sumDigitsArr.join('').replace(/[^\d]/g,'');
+    sumStr = parts.join('').replace(/[^\d]/g,'');
+  }
 
-    if (sumStr && userDigits && sumStr !== userDigits){
-      fbHtml += `<div class="warnmsg">Let op: de cijfers in de <b>onderste som-rij</b> komen niet overeen met je ingevulde antwoord.</div>`;
-      fbEl.innerHTML = fbHtml;
-      // knipper de hele som-rij en STOP → geen per-cel checks tot de som-rij matcht met het antwoord
+  // 1b) Feedbackbeslissing
+  // - Exact juist: OK tonen + per-cel checks, klaar.
+  if (isExact){
+    fbEl.innerHTML = `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+    runPerCellChecks();
+    return;
+  }
+
+  // - Niet exact: eerst checken of som-rij samenvalt met antwoord (cijfers)
+  if (!sumStr || sumStr !== userDigits){
+    // ⚠️ GEEN juist antwoord tonen; eerst de som-rij laten overeenkomen
+    fbEl.innerHTML = `<div class="warnmsg">Laat je antwoord overeenkomen met de onderste som‑rij.</div>`;
+    if (table && rSum !== null){
       const anyCell = table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
       const sumTr = anyCell ? anyCell.closest('tr') : null;
       if (sumTr) sumTr.classList.add('sum-blink');
-      return;
     }
+    return; // STOP → geen per-cel checks en geen juist antwoord
   }
 
-  // Als we hier zijn: niet exact correct, maar SOM-rij == antwoord → nu per-cel checks draaien
+  // - Niet exact, maar som-rij == antwoord: nu pas laten we inhoudelijk feedback + per-cel checks zien.
+  let fbHtml = '';
+  if (isDigitsOnly){
+    fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
+  } else {
+    fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
+  }
   fbEl.innerHTML = fbHtml;
   runPerCellChecks();
 
@@ -475,7 +479,7 @@ function checkAnswer(){
     }
 
     // ---- SOM-RIJ ----
-    const rSum = bLen;
+    const rSumLocal = bLen;
     const prod = String(current.productRaw); // digits only
     const L = prod.length;
     for (let c=1; c<cols; c++){
@@ -483,8 +487,8 @@ function checkAnswer(){
       const idx = L-1 - offsetFromRight;
       if (idx >= 0){
         const want = prod[idx];
-        const got  = valAt(rSum,c);
-        if (got !== want) markBad(rSum,c);
+        const got  = valAt(rSumLocal,c);
+        if (got !== want) markBad(rSumLocal,c);
       }
       // kolommen links van product (idx < 0) niet beoordelen
     }
