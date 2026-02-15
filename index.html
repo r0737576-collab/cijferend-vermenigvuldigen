@@ -92,9 +92,74 @@
     #print-area{ position:absolute; top:0; left:0; width:100%; }
     .bar, .btns, .legend{ display:none !important; }
   }
+/* --- FIX: zorg dat het moeilijkheidsmenu altijd bovenaan ligt en klikbaar is --- */
+details.diff { 
+  position: relative; 
+  z-index: 1000;       /* boven andere lagen */
+}
+.diff-menu {
+  position: absolute; 
+  top: 100%; 
+  left: 0; 
+  z-index: 2000;       /* nog hoger dan andere overlays */
+}  
 </style>
 </head>
 <body>
+  <!-- AUTO-BIND FIX: plak dit net voor </body> -->
+<script>
+(function(){
+  // Log JS-fouten zodat we meteen zien wat er mis is (F12 -> Console)
+  window.onerror = function (message, source, lineno, colno, error) {
+    console.log("JS-fout:", message, "@", source, lineno + ":" + colno);
+  };
+
+  window.addEventListener("DOMContentLoaded", function(){
+    try {
+      // Moeilijkheidsopties klikbaar maken (custom dropdown)
+      document.querySelectorAll('.diff-btn').forEach(function(btn){
+        btn.addEventListener('click', function(){
+          var diff = btn.dataset.diff;
+          // Pas label aan in de samenvatting (en sluit menu)
+          var summary = document.getElementById('diff-summary');
+          var detailsEl = document.getElementById('diff');
+          var labelEl = btn.querySelector('b');
+          if (summary && labelEl) summary.textContent = labelEl.textContent;
+          if (detailsEl) detailsEl.open = false;
+
+          // Diff toepassen op je state (als die bestaat)
+          try {
+            if (window.CONFIGS && Object.prototype.hasOwnProperty.call(window.CONFIGS, diff)) {
+              window.currentDiff = diff;  // gebruik dezelfde variabele als in je code
+            }
+          } catch(_) {}
+
+          // Nieuwe oefening starten als die functie bestaat
+          if (typeof window.newExercise === 'function') {
+            window.newExercise();
+          }
+        });
+      });
+
+      // Hoofdknoppen binden (alleen als ze bestaan)
+      var btnNew   = document.getElementById('btn-new');
+      var btnCheck = document.getElementById('btn-check');
+      var btnPdf   = document.getElementById('btn-pdf');
+
+      if (btnNew)   btnNew.addEventListener('click', function(){ if (typeof window.newExercise === 'function') window.newExercise(); });
+      if (btnCheck) btnCheck.addEventListener('click', function(){ if (typeof window.grade === 'function') window.grade(); });
+      if (btnPdf)   btnPdf.addEventListener('click', function(){ window.print(); });
+
+      // Eénmalig opstarten (alleen als de functie bestaat)
+      if (typeof window.newExercise === 'function') {
+        window.newExercise();
+      }
+    } catch(e){
+      console.log("Init-fout:", e);
+    }
+  });
+})();
+</script>
 <div class="wrap">
   <h1>Vermenigvuldigen — oefenen met cijferen</h1>
   <p class="lead">Natuurlijke én decimale getallen. Eerst schatten, dan cijferen. Rooster zonder komma’s, komma alleen in het eindantwoord.</p>
