@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (moeilijkheid + toggles + pijltjes)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + toggles + pijltjes + omdraaien)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -34,6 +34,7 @@
   }
   .task-label{ font-size:24px; font-weight:700; }
   .task-ans{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  #btn-swap{ background:#374151; } /* subtiel onderscheid voor de omdraai-knop */
 
   /* --- Rooster --- */
   .grid{ border-collapse:collapse; margin-top:8px; }
@@ -79,13 +80,15 @@
 
       <label><input type="checkbox" id="allowDec" checked> Decimale getallen toestaan</label>
       <label><input type="checkbox" id="prefillOperands"> Opgave in rooster tonen</label>
+      <label><input type="checkbox" id="allowSwap"> Omdraaien toestaan</label>
 
       <button id="btn-new">Nieuwe oefening</button>
     </div>
 
-    <!-- Opgave + inline antwoord -->
+    <!-- Opgave + inline antwoord + omdraaien -->
     <div class="task-row">
       <div class="task-label" id="task">—</div>
+      <button id="btn-swap" style="display:none" title="Wissel A en B">↔ Omdraaien</button>
       <div class="task-ans">
         <input id="answer" type="text" placeholder="bv. 123,45 of 123.45">
         <button id="btn-check">Nakijken</button>
@@ -132,6 +135,7 @@ let current = null;           // { a:{raw,decs}, b:{raw,decs}, productRaw, produ
 let currentDiff = 'moeilijk'; // default
 let allowDec = true;          // toggle (decimale getallen)
 let prefillOperands = false;  // toggle (opgave tonen in rooster)
+let allowSwap = false;        // toggle (omdraaien toestaan)
 
 /* Maak factor binnen grenzen + decimaalregel (1000 => geen decimalen) */
 function makeNumberBounded(cfg){
@@ -165,10 +169,10 @@ function newExercise(){
   };
 
   document.getElementById('task').textContent = `${a.shown} × ${b.shown} =`;
-
   document.getElementById('answer').value = '';
   document.getElementById('feedback').innerHTML = '';
 
+  updateSwapVisibility();
   buildGrid(current);
 }
 
@@ -194,17 +198,7 @@ function buildGrid(item){
   const cols = 1 + aLen + bLen;
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
-  const emptyInputs = (n, r=null, cStart=0, firstCol=false) => {
-    // helper om n invulbare inputs te maken; data-r/c alleen zetten als r!=null
-    let out = '';
-    for(let i=0;i<n;i++){
-      const c = cStart+i;
-      const cls = firstCol && i===0 ? 'first-col' : '';
-      const data = (r===null) ? '' : ` data-r="${r}" data-c="${c}"`;
-      out += td(`<input${data} inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`, cls);
-    }
-    return out;
-  };
+  const emptyInputs = (n) => Array.from({length:n}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
 
   // Factor-rij (1): A
   const rowA = (() => {
@@ -216,8 +210,7 @@ function buildGrid(item){
       return `<tr>${first}${left}${body}</tr>`;
     } else {
       // Leerlingen vullen zelf alle kolommen (behalve 1e grijze) in
-      const editable = emptyInputs(cols-1, null, 1, false);
-      return `<tr>${first}${editable}</tr>`;
+      return `<tr>${first}${emptyInputs(cols-1)}</tr>`;
     }
   })();
 
@@ -230,8 +223,7 @@ function buildGrid(item){
       const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
       return `<tr class="thick-after">${first}${left}${body}</tr>`;
     } else {
-      const editable = emptyInputs(cols-1, null, 1, false);
-      return `<tr class="thick-after">${first}${editable}</tr>`;
+      return `<tr class="thick-after">${first}${emptyInputs(cols-1)}</tr>`;
     }
   })();
 
@@ -250,7 +242,7 @@ function buildGrid(item){
     partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // Som-rij (r = bLen): kolom 0 grijs + rest invulbaar
+  // Som-rij (r = bLen)
   const rowSum = (() => {
     const r = bLen;
     let rowHtml = '';
@@ -279,7 +271,7 @@ function buildGrid(item){
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // ===== Pijltjesnavigatie =====
+  // ===== Pijltjes-navigatie =====
   const gridEl = document.getElementById('grid');
   gridEl.addEventListener('keydown', (e)=>{
     const t = e.target;
@@ -301,6 +293,32 @@ function buildGrid(item){
     const next = gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`);
     if (next) next.focus();
   });
+}
+
+/* ===== Omdraaien (swap A en B) ===== */
+function updateSwapVisibility(){
+  const btnSwap = document.getElementById('btn-swap');
+  btnSwap.style.display = allowSwap ? 'inline-block' : 'none';
+}
+function swapOperands(){
+  if (!current) return;
+  // wissel a en b
+  const tmp = current.a; current.a = current.b; current.b = tmp;
+  // herbereken product-meta (productRaw is gelijk maar veilig opnieuw)
+  current.productRaw  = String(Number(current.a.raw) * Number(current.b.raw));
+  current.productDecs = current.a.decs + current.b.decs;
+
+  // opgave hertekenen
+  const aShown = formatWithComma(current.a.raw, current.a.decs);
+  const bShown = formatWithComma(current.b.raw, current.b.decs);
+  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
+
+  // antwoord/feedback leegmaken (rooster is veranderd qua rijen/shifts)
+  document.getElementById('answer').value = '';
+  document.getElementById('feedback').innerHTML = '';
+
+  // rooster opnieuw opbouwen
+  buildGrid(current);
 }
 
 /* ===== Nakijken (alleen eindantwoord) ===== */
@@ -330,16 +348,22 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const sel = document.getElementById('difficulty');
   const chkDec = document.getElementById('allowDec');
   const chkFill = document.getElementById('prefillOperands');
+  const chkSwap = document.getElementById('allowSwap');
+  const btnSwap = document.getElementById('btn-swap');
 
   sel.addEventListener('change', () => { currentDiff = sel.value; newExercise(); });
   chkDec.addEventListener('change', () => { allowDec = chkDec.checked; newExercise(); });
   chkFill.addEventListener('change', () => { prefillOperands = chkFill.checked; buildGrid(current); });
+  chkSwap.addEventListener('change', () => { allowSwap = chkSwap.checked; updateSwapVisibility(); });
 
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
+  btnSwap.addEventListener('click', swapOperands);
 
   // Start
   prefillOperands = false; // standaard UIT
+  allowSwap = false;       // standaard UIT
+  updateSwapVisibility();
   newExercise();
 });
 </script>
