@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (linkse kolommen invulbaar)</title>
+<title>Vermenigvuldigen — cijferen (linkse kolom + invulbare pads)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -14,7 +14,16 @@
   .wrap{ max-width:900px; margin:auto; padding:20px; }
   .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.06); }
 
-  h1{ margin font-size:24px; font-weight:700; margin:12px 0; }  h1{ margin:0 0 8px; font-size:22px; }
+  h1{ margin:0 0 8px; font-size:22px; }
+  .lead{ margin:0 0 12px; color:var(--muted); }
+  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  button{
+    padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
+  }
+  input[type="text"]{
+    padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
+  }
+  .task{ font-size:24px; font-weight:700; margin:12px 0; }
   .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
 
   /* --- Rooster --- */
@@ -143,8 +152,9 @@ function newExercise(){
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
    3) bLen rijen tussenproducten (invulbaar), met shift
       - kolom 0: grijze (invulbare) klad/carry
-      - daarachter ZOWEL de linkse uitlijn-vakjes als het core-blok invulbaar
-      - shift rechts invulbaar
+      - links van het core-blok: invulbare pads (normale kleur)
+      - core-blok: aLen invulbare inputs
+      - rechts: k invulbare shift-inputs
    4) som-rij (invulbaar), met dikke lijn erboven; kolom 0 grijs invulbaar
 */
 function buildGrid(item){
@@ -156,18 +166,19 @@ function buildGrid(item){
   // totaal kolommen: 1 linkse klad/carry + aLen hoofd + bLen shift
   const cols = 1 + aLen + bLen;
 
+  // helper voor een cel
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
-  // Rij 1: factor A (rechts uitgelijnd over de laatste aLen kolommen; linkse grijze kolom readonly)
+  // Rij 1: factor A (rechts uitgelijnd; linkse grijze kolom readonly)
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
-    const left  = Array.from({length:blanks}).map(()=>td('')).join(''); // factor-rij: geen klad nodig
+    const left  = Array.from({length:blanks}).map(()=>td('')).join('');
     const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr>${first}${left}${body}</tr>`;
   })();
 
-  // Rij 2: factor B (idem) + dikke lijn eronder
+  // Rij 2: factor B (rechts uitgelijnd; linkse grijze kolom readonly) + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -176,11 +187,7 @@ function buildGrid(item){
     return `<tr class="thick-after">${first}${left}${body}</tr>`;
   })();
 
-  // bLen rijen tussenproducten:
-  // - kolom 0: grijze klad/carry (invulbaar)
-  // - links van het core-blok: invulbare pads (normale kleur)
-  // - core-blok: aLen invulbare inputs
-  // - rechts: k invulbare shift-inputs
+  // bLen rijen tussenproducten: linkse grijze kolom + invulbare pads + core + shift
   let partials = '';
   for (let k = 0; k < bLen; k++){
     const leftPadsCount = (cols - 1) - (aLen + k);
@@ -198,9 +205,7 @@ function buildGrid(item){
     partials += `<tr>${first}${leftPads}${core}${shift}</tr>`;
   }
 
-  // Som-rij:
-  // - kolom 0: grijze klad/carry (invulbaar)
-  // - rest: invulbaar
+  // Som-rij: linkse grijze kolom + rest invulbaar, dikke lijn erboven
   const rowSum = (() => {
     const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
     const rest  = Array.from({length:cols-1})
@@ -253,11 +258,3 @@ window.addEventListener('DOMContentLoaded', ()=>{
 </script>
 </body>
 </html>
-  .lead{ margin:0 0 12px; color:var(--muted); }
-  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-  button{
-    padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
-  }
-  input[type="text"]{
-    padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
-  }
