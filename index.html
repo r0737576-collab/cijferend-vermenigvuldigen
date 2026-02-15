@@ -11,16 +11,16 @@
   --line:#e5e7eb; --accent:#2563eb;
 }
 body{
-  margin:0; background:var(--bg);
+  margin:0; background:var(--bg); color:var(--ink);
   font-family:Arial, sans-serif;
 }
 .wrap{ max-width:1000px; margin:auto; padding:20px; }
 .card{
-  background:#fff; padding:16px;
-  border-radius:12px;
-  border:1px solid var(--line);
+  background:#fff; padding:16px; border-radius:12px; border:1px solid var(--line);
 }
-.bar{ display:flex; gap:10px; flex-wrap:wrap; }
+.bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
+
+select{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
 
 button{
   padding:10px 14px;
@@ -40,11 +40,12 @@ button{
 .grid input{
   width:100%; height:100%;
   border:none; text-align:center;
-  font-size:16px;
+  font-size:16px; outline:none;
 }
 
 .ok{ background:#e6f7f1; padding:8px; border-radius:8px; }
 .err{ background:#fde8e8; padding:8px; border-radius:8px; }
+.warn{ background:#fff7ed; padding:8px; border-radius:8px; }
 
 .nav{ margin-top:10px; display:flex; gap:10px; }
 </style>
@@ -53,227 +54,204 @@ button{
 <body>
 <div class="wrap">
 
-<h1>Vermenigvuldigen — oefenen met cijferen</h1>
+  <h1>Vermenigvuldigen — oefenen met cijferen</h1>
 
-<div class="card">
+  <div class="card">
 
-<div class="bar">
-<select id="difficulty">
-<option value="makkelijk">Makkelijk</option>
-<option value="gemiddeld">Gemiddeld</option>
-<option value="moeilijk" selected>Moeilijk</option>
-</select>
+    <!-- Bovenbalk -->
+    <div class="bar">
+      <label for="difficulty"><b>Moeilijkheid:</b></label>
+      <select id="difficulty">
+        <option value="makkelijk">Makkelijk</option>
+        <option value="gemiddeld">Gemiddeld</option>
+        <option value="moeilijk" selected>Moeilijk</option>
+      </select>
 
-<button id="btn-new" onclick="newSet()">Nieuwe set (5)</button>
-<button onclick="window.print()">Print</button>
-</div>
+      <button id="btn-new">Nieuwe set (5)</button>
+      <button id="btn-print" style="background:#0f172a;">Print</button>
+    </div>
 
-<div id="counter"></div>
-<div class="task" id="task"></div>
+    <div id="counter"></div>
+    <div class="task" id="task"></div>
 
-<label>Schatting:</label>
-<input id="est">
-<button id="btn-start">Start</button>
+    <label for="est"><b>Schatting:</b></label>
+    <input id="est" type="text" placeholder="bv. 1200 of 12,5">
+    <button id="btn-start" style="background:#374151;">Start</button>
 
-<div id="work" style="display:none">
+    <div id="work" style="display:none">
+      <div id="grid" style="margin-top:10px;"></div>
 
-<div id="grid"></div>
+      <div style="margin-top:10px">
+        <label for="answer"><b>Eindantwoord:</b></label>
+        <input id="answer" type="text" placeholder="bv. 123,45">
+        <button id="btn-check">Nakijken</button>
+      </div>
 
-<div style="margin-top:10px">
-<label>Eindantwoord:</label>
-<input id="answer">
-<button id="btn-check">Nakijken</button>
-</div>
+      <div id="feedback" style="margin-top:10px"></div>
 
-<div id="feedback" style="margin-top:10px"></div>
+      <div class="nav">
+        <button id="prev" style="background:#374151;">Vorige</button>
+        <button id="next" style="background:#374151;">Volgende</button>
+      </div>
+    </div>
 
-<div class="nav">
-<button id="prev">Vorige</button>
-<button id="next">Volgende</button>
-</div>
-
-</div>
-</div>
+  </div>
 </div>
 
 <script>
 /* ================= CONFIG ================= */
-
-const DIFFS={
-makkelijk:{a:[1,2],b:[1,2],dec:[0,1]},
-gemiddeld:{a:[2,3],b:[1,3],dec:[0,2]},
-moeilijk:{a:[3,5],b:[2,3],dec:[0,2]}
+const DIFFS = {
+  makkelijk: { a:[1,2], b:[1,2], dec:[0,1] },
+  gemiddeld: { a:[2,3], b:[1,3], dec:[0,2] },
+  moeilijk:  { a:[3,5], b:[2,3], dec:[0,2] }
 };
 
-let diff="moeilijk";
-let set=[];
-let index=0;
+let diff = 'moeilijk';   // huidig niveau
+let set = [];            // 5 opgaven
+let index = 0;           // 0..4
 
 /* ================= HELPERS ================= */
+function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
 
-function rand(a,b){
-return Math.floor(Math.random()*(b-a+1))+a;
+// maak getal met gegeven cijfers & decimalen (we tonen met komma, raw = cijferstring zonder komma)
+function makeNumber(digRange, decRange){
+  const d = rand(digRange[0], digRange[1]);
+  const decimals = rand(decRange[0], decRange[1]);
+
+  const minInt = Math.pow(10, Math.max(0, d-1));
+  const maxInt = Math.pow(10, d)-1;
+  let intPart = (d===1) ? rand(0,9) : rand(minInt, maxInt); // bij 1 cijfer: 0..9, anders 10^(d-1)..(10^d-1)
+
+  if (decimals === 0) {
+    return { shown:String(intPart), raw:String(intPart), decs:0 };
+  }
+
+  let decPart = String(rand(0, Math.pow(10,decimals)-1)).padStart(decimals, '0');
+  return { shown: String(intPart)+','+decPart, raw: String(intPart)+decPart, decs: decimals };
 }
 
-function makeNumber(dig,dec){
-const d=rand(dig[0],dig[1]);
-const decimals=rand(dec[0],dec[1]);
-
-let int=rand(10**(d-1),10**d-1);
-
-if(decimals===0){
-return{shown:String(int),raw:String(int),decs:0};
-}
-
-let decPart=String(rand(0,10**decimals-1))
-.padStart(decimals,"0");
-
-return{
-shown:int+","+decPart,
-raw:String(int)+decPart,
-decs:decimals
-};
-}
-
-function insertComma(raw,decs){
-if(decs===0)return raw;
-if(raw.length<=decs){
-raw=raw.padStart(decs+1,"0");
-}
-return raw.slice(0,-decs)+","+raw.slice(-decs);
+// zet komma in raw product (raw = digits only)
+function insertComma(raw, decs){
+  if (decs <= 0) return raw;
+  let s = String(raw);
+  if (s.length <= decs) s = s.padStart(decs+1, '0');
+  const pos = s.length - decs;
+  return s.slice(0,pos) + ',' + s.slice(pos);
 }
 
 /* ================= SET ================= */
+// bouw 5 opgaven op basis van huidig niveau
+function newSet(){
+  const cfg = DIFFS[diff];
+  set = [];
 
-
-document.getElementById("btn-new").addEventListener("click", newSet);
-
-set=[];
-
-for(let i=0;i<5;i++){
-
-const cfg=DIFFS[diff];
-
-const a=makeNumber(cfg.a,cfg.dec);
-const b=makeNumber(cfg.b,cfg.dec);
-
-const product=String(Number(a.raw)*Number(b.raw));
-const decs=a.decs+b.decs;
-
-set.push({a,b,product,decs});
-}
-
-index=0;
-render();
+  for(let i=0;i<5;i++){
+    const a = makeNumber(cfg.a, cfg.dec);
+    const b = makeNumber(cfg.b, cfg.dec);
+    const productRaw = String(Number(a.raw) * Number(b.raw));
+    const productDecs = a.decs + b.decs;
+    set.push({
+      a, b,
+      product: productRaw,
+      decs: productDecs
+    });
+  }
+  index = 0;
+  render();
 }
 
 /* ================= RENDER ================= */
-
 function render(){
+  const item = set[index];
 
-const item=set[index];
+  document.getElementById("counter").textContent = `Oefening ${index+1} van 5`;
+  document.getElementById("task").textContent = `${item.a.shown} × ${item.b.shown} =`;
 
-document.getElementById("counter")
-.textContent=`Oefening ${index+1} van 5`;
+  // reset invoer
+  document.getElementById("est").value = '';
+  document.getElementById("answer").value = '';
+  document.getElementById("feedback").innerHTML = '';
+  document.getElementById("work").style.display = 'none';
 
-document.getElementById("task")
-.textContent=`${item.a.shown} × ${item.b.shown} =`;
+  buildGrid(item);
 
-document.getElementById("est").value="";
-document.getElementById("answer").value="";
-document.getElementById("feedback").innerHTML="";
-document.getElementById("work").style.display="none";
-
-buildGrid(item);
+  // nav-knoppen
+  document.getElementById("prev").disabled = (index===0);
+  document.getElementById("next").disabled = (index===4);
 }
 
 /* ================= GRID ================= */
-
+// simpele rasteropbouw (cijferhokjes); didactisch rooster kun je later uitbreiden
 function buildGrid(item){
+  const aLen = item.a.raw.length;
+  const bLen = item.b.raw.length;
 
-const a=item.a.raw.length;
-const b=item.b.raw.length;
+  // eenvoudige rechthoek: rijen = bLen, kolommen = aLen + bLen (ruimte voor shifts/carries)
+  const rows = bLen;
+  const cols = aLen + bLen;
 
-const rows=b;
-const cols=a+b;
+  let html = "<table class='grid'>";
+  for(let r=0;r<rows;r++){
+    html += "<tr>";
+    for(let c=0;c<cols;c++){
+      html += "<td><input inputmode='numeric' pattern='[0-9]*' maxlength='1'></td>";
+    }
+    html += "</tr>";
+  }
+  html += "</table>";
 
-let html="<table class='grid'>";
-
-for(let r=0;r<rows;r++){
-html+="<tr>";
-for(let c=0;c<cols;c++){
-html+="<td><input></td>";
-}
-html+="</tr>";
-}
-
-html+="</table>";
-
-document.getElementById("grid").innerHTML=html;
+  document.getElementById("grid").innerHTML = html;
 }
 
 /* ================= START ================= */
-
 function startExercise(){
-
-if(!document.getElementById("est").value){
-alert("Vul eerst je schatting in");
-return;
-}
-
-document.getElementById("work").style.display="block";
+  const est = document.getElementById("est").value.trim();
+  if(!est){
+    alert('Vul eerst je schatting in.');
+    return;
+  }
+  document.getElementById("work").style.display = 'block';
 }
 
 /* ================= CHECK ================= */
-
 function checkExercise(){
+  const item = set[index];
+  const user = document.getElementById("answer").value.trim().replace('.', ',');
+  const correct = insertComma(item.product, item.decs);
 
-const item=set[index];
-
-const correct=
-insertComma(item.product,item.decs);
-
-const user=
-document.getElementById("answer")
-.value.replace(".",",");
-
-if(user===correct){
-document.getElementById("feedback")
-.innerHTML=`<div class="ok">Correct ✔ ${correct}</div>`;
-}else{
-document.getElementById("feedback")
-.innerHTML=`<div class="err">Fout ✖ Correct: ${correct}</div>`;
-}
+  const fb = document.getElementById("feedback");
+  if(user === correct){
+    fb.innerHTML = `<div class="ok">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+  }else{
+    // controle: zelfde cijfers zonder punctuatie -> waarschijnlijk kommafout
+    const digitsEq = user.replace(/[^\d]/g,'') === correct.replace(/[^\d]/g,'');
+    if(digitsEq){
+      fb.innerHTML = `<div class="warn">⚠ De cijfers kloppen, maar de <b>komma</b> staat wellicht verkeerd. Dit product heeft <b>${item.decs}</b> kommacijfer(s). Correct is: <b>${correct}</b>.</div>`;
+    }else{
+      fb.innerHTML = `<div class="err">✖ Niet juist. Correct is: <b>${correct}</b>.</div>`;
+    }
+  }
 }
 
 /* ================= NAV ================= */
-
-function nextEx(){
-if(index<4){index++;render();}
-}
-
-function prevEx(){
-if(index>0){index--;render();}
-}
+function nextEx(){ if(index<4){ index++; render(); } }
+function prevEx(){ if(index>0){ index--; render(); } }
 
 /* ================= EVENTS ================= */
+document.getElementById("btn-new").addEventListener("click", newSet);
+document.getElementById("btn-print").addEventListener("click", () => window.print());
+document.getElementById("btn-start").addEventListener("click", startExercise);
+document.getElementById("btn-check").addEventListener("click", checkExercise);
+document.getElementById("next").addEventListener("click", nextEx);
+document.getElementById("prev").addEventListener("click", prevEx);
 
-document.getElementById("btn-new")
-.addEventListener("click",newSet);
+// diff-wissel → nieuwe set
+document.getElementById("difficulty").addEventListener("change", (e)=>{
+  diff = e.target.value;
+  newSet();
+});
 
-document.getElementById("btn-start")
-.addEventListener("click",startExercise);
-
-document.getElementById("btn-check")
-.addEventListener("click",checkExercise);
-
-document.getElementById("next")
-.addEventListener("click",nextEx);
-
-document.getElementById("prev")
-.addEventListener("click",prevEx);
-
-/* init */
+// init
 newSet();
 </script>
 
