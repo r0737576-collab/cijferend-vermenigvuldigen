@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (moeilijkheid + pijltjesnavigatie)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + toggles + pijltjes)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -15,9 +15,8 @@
   .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.06); }
 
   h1{ margin:0 0 8px; font-size:22px; }
-  .lead{ margin:0 0 12px; color:var(--muted); }
 
-  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  .bar{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .bar select, .bar input[type="checkbox"]{ transform: translateY(1px); }
   .bar label{ color:#0f172a; }
 
@@ -69,7 +68,7 @@
   <h1>Vermenigvuldigen — cijferen</h1>
 
   <div class="card">
-    <!-- Moeilijkheid + toggle decimaal -->
+    <!-- Moeilijkheid + toggles -->
     <div class="bar">
       <label for="difficulty"><b>Moeilijkheid:</b></label>
       <select id="difficulty">
@@ -79,6 +78,7 @@
       </select>
 
       <label><input type="checkbox" id="allowDec" checked> Decimale getallen toestaan</label>
+      <label><input type="checkbox" id="prefillOperands"> Opgave in rooster tonen</label>
 
       <button id="btn-new">Nieuwe oefening</button>
     </div>
@@ -130,7 +130,8 @@ const DIFF = {
 
 let current = null;           // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
 let currentDiff = 'moeilijk'; // default
-let allowDec = true;          // toggle
+let allowDec = true;          // toggle (decimale getallen)
+let prefillOperands = false;  // toggle (opgave tonen in rooster)
 
 /* Maak factor binnen grenzen + decimaalregel (1000 => geen decimalen) */
 function makeNumberBounded(cfg){
@@ -174,15 +175,15 @@ function newExercise(){
 /* ===== Rooster =====
    Kolommen: 1 (linkse klad/carry) + aLen + (shift rechts) --> cols = 1 + aLen + bLen
    Rijen:
-   1) factor A (readonly, rechts uitgelijnd)
-   2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
+   1) factor A (prefill aan = readonly cijfers; uit = lege invulcellen), rechts uitgelijnd
+   2) factor B (idem) + dikke lijn eronder
    3) bLen rijen tussenproducten (invulbaar), met shift
       - kolom 0: grijze (invulbare) klad/carry
       - links van het core-blok: invulbare pads (normale kleur)
       - core-blok: aLen invulbare inputs
       - rechts: k invulbare shift-inputs
    4) som-rij (invulbaar), met dikke lijn erboven; kolom 0 grijs invulbaar
-   ▸ Alle invulvakken krijgen data-r en data-c voor pijltjesnavigatie.
+   ▸ Pijltjes-navigatie op alle inputs met data-r/data-c (tussenproducten + som).
 */
 function buildGrid(item){
   const aDigits = item.a.raw.split('').map(Number);
@@ -190,59 +191,76 @@ function buildGrid(item){
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  const cols = 1 + aLen + bLen;   // totaal aantal kolommen
+  const cols = 1 + aLen + bLen;
 
-  // helper voor een td (met optionele class)
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
+  const emptyInputs = (n, r=null, cStart=0, firstCol=false) => {
+    // helper om n invulbare inputs te maken; data-r/c alleen zetten als r!=null
+    let out = '';
+    for(let i=0;i<n;i++){
+      const c = cStart+i;
+      const cls = firstCol && i===0 ? 'first-col' : '';
+      const data = (r===null) ? '' : ` data-r="${r}" data-c="${c}"`;
+      out += td(`<input${data} inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`, cls);
+    }
+    return out;
+  };
 
-  // ===== Factor-rijen (readonly, géén data-r/c nodig) =====
+  // Factor-rij (1): A
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
-    const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
-    const left  = Array.from({length:blanks}).map(()=>td('')).join('');
-    const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr>${first}${left}${body}</tr>`;
+    const first  = td(`<input class="first-col" value="" readonly>`, 'first-col');
+    if (prefillOperands){
+      const left  = Array.from({length:blanks}).map(()=>td('')).join('');
+      const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+      return `<tr>${first}${left}${body}</tr>`;
+    } else {
+      // Leerlingen vullen zelf alle kolommen (behalve 1e grijze) in
+      const editable = emptyInputs(cols-1, null, 1, false);
+      return `<tr>${first}${editable}</tr>`;
+    }
   })();
 
+  // Factor-rij (2): B + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
-    const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
-    const left  = Array.from({length:blanks}).map(()=>td('')).join('');
-    const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr class="thick-after">${first}${left}${body}</tr>`;
+    const first  = td(`<input class="first-col" value="" readonly>`, 'first-col');
+    if (prefillOperands){
+      const left  = Array.from({length:blanks}).map(()=>td('')).join('');
+      const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+      return `<tr class="thick-after">${first}${left}${body}</tr>`;
+    } else {
+      const editable = emptyInputs(cols-1, null, 1, false);
+      return `<tr class="thick-after">${first}${editable}</tr>`;
+    }
   })();
 
-  // ===== Tussenproducten (r = 0..bLen-1) =====
-  // Kolommen 0..cols-1 allemaal invulbaar:
-  //  - c=0 is grijs (first-col)
-  //  - c in (1 .. cols - k - aLen - 1) = linkerpads
-  //  - c in (cols - k - aLen .. cols - k - 1) = core
-  //  - c in (cols - k .. cols - 1) = shift
+  // Tussenproducten (r = 0..bLen-1): alle kolommen invulbaar met data-r/c
   let partials = '';
   for (let r = 0; r < bLen; r++){
-    const k = r; // shift
-    const coreStart = cols - k - aLen;
-    const coreEnd   = cols - k - 1;
     let rowHtml = '';
-
     for (let c = 0; c < cols; c++){
       const isFirst = (c === 0);
       const cls = isFirst ? 'first-col' : '';
-      const readonly = ''; // tussenproducten altijd invulbaar
-      rowHtml += td(`<input ${readonly} data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${isFirst?'first-col':''}">`, cls);
+      rowHtml += td(
+        `<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`,
+        cls
+      );
     }
     partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // ===== Som-rij (r = bLen) =====
-  //  - c=0 grijs (first-col), rest invulbaar
+  // Som-rij (r = bLen): kolom 0 grijs + rest invulbaar
   const rowSum = (() => {
     const r = bLen;
     let rowHtml = '';
     for (let c = 0; c < cols; c++){
       const isFirst = (c === 0);
       const cls = isFirst ? 'first-col' : '';
-      rowHtml += td(`<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${isFirst?'first-col':''}">`, cls);
+      rowHtml += td(
+        `<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`,
+        cls
+      );
     }
     return `<tr class="thick-before">${rowHtml}</tr>`;
   })();
@@ -268,8 +286,7 @@ function buildGrid(item){
     if (!(t instanceof HTMLInputElement)) return;
     const r = Number(t.getAttribute('data-r'));
     const c = Number(t.getAttribute('data-c'));
-    // Alleen inputs met data-r/c (tussenproducten + som) navigeren we
-    if (Number.isNaN(r) || Number.isNaN(c)) return;
+    if (Number.isNaN(r) || Number.isNaN(c)) return; // alleen tussenproducten + som
 
     const maxR = bLen;       // tussenproducten 0..bLen-1, som = bLen
     const maxC = cols - 1;
@@ -309,17 +326,20 @@ function checkAnswer(){
 
 /* ===== Events ===== */
 window.addEventListener('DOMContentLoaded', ()=>{
-  // Moeilijkheid en toggle decimaal
+  // Moeilijkheid + toggles
   const sel = document.getElementById('difficulty');
-  const chk = document.getElementById('allowDec');
+  const chkDec = document.getElementById('allowDec');
+  const chkFill = document.getElementById('prefillOperands');
 
   sel.addEventListener('change', () => { currentDiff = sel.value; newExercise(); });
-  chk.addEventListener('change', () => { allowDec = chk.checked; newExercise(); });
+  chkDec.addEventListener('change', () => { allowDec = chkDec.checked; newExercise(); });
+  chkFill.addEventListener('change', () => { prefillOperands = chkFill.checked; buildGrid(current); });
 
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
 
   // Start
+  prefillOperands = false; // standaard UIT
   newExercise();
 });
 </script>
