@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (moeilijkheid + toggle decimaal)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + pijltjesnavigatie)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -70,7 +70,7 @@
   <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij.</p>
 
   <div class="card">
-    <!-- Moeilijkheidskeuze + toggle decimaal -->
+    <!-- Moeilijkheid + toggle decimaal -->
     <div class="bar">
       <label for="difficulty"><b>Moeilijkheid:</b></label>
       <select id="difficulty">
@@ -136,7 +136,7 @@ let allowDec = true;          // toggle
 /* Maak factor binnen grenzen + decimaalregel (1000 => geen decimalen) */
 function makeNumberBounded(cfg){
   const intPart = randInt(cfg.min, cfg.max);
-  let decs = allowDec ? randInt(0, cfg.decMax) : 0;  // toggle bepaalt of decimalen mogen
+  let decs = allowDec ? randInt(0, cfg.decMax) : 0;  // toggle bepaalt decimalen
   if (intPart === cfg.max) decs = 0; // 1000,xxx > 1000 → niet toegestaan
 
   const decPart = decs > 0
@@ -183,6 +183,7 @@ function newExercise(){
       - core-blok: aLen invulbare inputs
       - rechts: k invulbare shift-inputs
    4) som-rij (invulbaar), met dikke lijn erboven; kolom 0 grijs invulbaar
+   ▸ Alle invulvakken krijgen data-r en data-c voor pijltjesnavigatie.
 */
 function buildGrid(item){
   const aDigits = item.a.raw.split('').map(Number);
@@ -190,11 +191,12 @@ function buildGrid(item){
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  const cols = 1 + aLen + bLen;
+  const cols = 1 + aLen + bLen;   // totaal aantal kolommen
 
+  // helper voor een td (met optionele class)
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
-  // Rij 1: factor A (rechts uitgelijnd; linkse grijze kolom readonly)
+  // ===== Factor-rijen (readonly, géén data-r/c nodig) =====
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -203,7 +205,6 @@ function buildGrid(item){
     return `<tr>${first}${left}${body}</tr>`;
   })();
 
-  // Rij 2: factor B (rechts uitgelijnd; linkse grijze kolom readonly) + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -212,30 +213,39 @@ function buildGrid(item){
     return `<tr class="thick-after">${first}${left}${body}</tr>`;
   })();
 
-  // bLen rijen tussenproducten: linkse grijze kolom + invulbare pads + core + shift
+  // ===== Tussenproducten (r = 0..bLen-1) =====
+  // Kolommen 0..cols-1 allemaal invulbaar:
+  //  - c=0 is grijs (first-col)
+  //  - c in (1 .. cols - k - aLen - 1) = linkerpads
+  //  - c in (cols - k - aLen .. cols - k - 1) = core
+  //  - c in (cols - k .. cols - 1) = shift
   let partials = '';
-  for (let k = 0; k < bLen; k++){
-    const leftPadsCount = (cols - 1) - (aLen + k);
-    const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
+  for (let r = 0; r < bLen; r++){
+    const k = r; // shift
+    const coreStart = cols - k - aLen;
+    const coreEnd   = cols - k - 1;
+    let rowHtml = '';
 
-    const leftPads = Array.from({length:leftPadsCount})
-      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-
-    const core  = Array.from({length:aLen})
-      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-
-    const shift = Array.from({length:k})
-      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-
-    partials += `<tr>${first}${leftPads}${core}${shift}</tr>`;
+    for (let c = 0; c < cols; c++){
+      const isFirst = (c === 0);
+      const cls = isFirst ? 'first-col' : '';
+      const readonly = ''; // tussenproducten altijd invulbaar
+      rowHtml += td(`<input ${readonly} data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${isFirst?'first-col':''}">`, cls);
+    }
+    partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // Som-rij: linkse grijze kolom + rest invulbaar, dikke lijn erboven
+  // ===== Som-rij (r = bLen) =====
+  //  - c=0 grijs (first-col), rest invulbaar
   const rowSum = (() => {
-    const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
-    const rest  = Array.from({length:cols-1})
-      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    return `<tr class="thick-before">${first}${rest}</tr>`;
+    const r = bLen;
+    let rowHtml = '';
+    for (let c = 0; c < cols; c++){
+      const isFirst = (c === 0);
+      const cls = isFirst ? 'first-col' : '';
+      rowHtml += td(`<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${isFirst?'first-col':''}">`, cls);
+    }
+    return `<tr class="thick-before">${rowHtml}</tr>`;
   })();
 
   const html =
@@ -251,6 +261,30 @@ function buildGrid(item){
   // Korte nota
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
+
+  // ===== Pijltjesnavigatie =====
+  const gridEl = document.getElementById('grid');
+  gridEl.addEventListener('keydown', (e)=>{
+    const t = e.target;
+    if (!(t instanceof HTMLInputElement)) return;
+    const r = Number(t.getAttribute('data-r'));
+    const c = Number(t.getAttribute('data-c'));
+    // Alleen inputs met data-r/c (tussenproducten + som) navigeren we
+    if (Number.isNaN(r) || Number.isNaN(c)) return;
+
+    const maxR = bLen;       // tussenproducten 0..bLen-1, som = bLen
+    const maxC = cols - 1;
+
+    let nr = r, nc = c;
+    if (e.key === 'ArrowLeft'){ nc = Math.max(0, c - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight'){ nc = Math.min(maxC, c + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp'){ nr = Math.max(0, r - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowDown'){ nr = Math.min(maxR, r + 1); e.preventDefault(); }
+    else { return; }
+
+    const next = gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`);
+    if (next) next.focus();
+  });
 }
 
 /* ===== Nakijken (alleen eindantwoord) ===== */
