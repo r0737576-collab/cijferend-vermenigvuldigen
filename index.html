@@ -3,80 +3,153 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — oefenen met cijferen</title>
-
+<title>Vermenigvuldigen — minimum v0.1 (met cijfer-rooster)</title>
 <style>
-:root{
-  --bg:#f7f8fb; --card:#fff; --ink:#111;
-  --line:#e5e7eb; --accent:#2563eb; --accent2:#374151; --accent3:#0f172a;
-}
-*{box-sizing:border-box}
-body{
-  margin:0; background:var(--bg); color:var(--ink);
-  font-family:Arial, Helvetica, sans-serif;
-}
-.wrap{ max-width:1000px; margin:auto; padding:20px; }
-.card{
-  background:#fff; padding:16px; border-radius:12px; border:1px solid var(--line);
-  box-shadow:0 6px 20px rgba(0,0,0,.06);
-}
-h1{ margin:0 0 8px; font-size:22px; }
-.lead{ margin:0 0 12px; color:#4b5563; }
+  :root{ --bg:#f7f8fb; --card:#fff; --ink:#111; --line:#e5e7eb; --accent:#2563eb; --muted:#4b5563; }
+  *{box-sizing:border-box}
+  body{ margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
+  .wrap{ max-width:900px; margin:auto; padding:20px; }
+  .card{ background:#fff; border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.06); }
+  h1{ margin:0 0 8px; font-size:22px; }
+  p.lead{ margin:0 0 12px; color:var(--muted); }
+  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  button{ padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer; }
+  .task{ font-size:24px; font-weight:700; margin:12px 0; }
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
+  input[type="text"]{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; min-width:200px; font-size:16px; }
+  .ok{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .err{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .warn{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
 
-.bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:8px; }
-select{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:#fff; }
+  /* --- Rooster (cijferen) --- */
+  .grid{ border-collapse:collapse; margin-top:8px; }
+  .grid td{
+    border:1px solid var(--line);
+    width:32px; height:36px; text-align:center; vertical-align:middle;
+  }
+  .grid input{
+    width:100%; height:100%;
+    border:none; text-align:center; font-size:16px; outline:none;
+  }
+  .grid .label{ width:54px; background:#f8fafc; font-weight:700; }
+  .grid .thick-top{ border-top:3px solid #111; }
+  .grid .thick-bottom{ border-bottom:3px solid #111; }
+  .grid .readonly{ background:#f3f4f6; color:#334155; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Vermenigvuldigen — minimum (v0.1)</h1>
+  <p class="lead">Rooster: 2 rijen voor de factoren, dikke streep, rijen voor tussenproducten, dikke streep, 1 rij voor som.</p>
 
-button{
-  padding:10px 14px; border:none; border-radius:8px; color:#fff; font-weight:600; cursor:pointer;
-}
-.btn-main{ background:var(--accent); }
-.btn-sec{ background:var(--accent2); }
-.btn-dark{ background:var(--accent3); }
+  <div class="card">
+    <div class="bar">
+      <button id="btn-new">Nieuwe oefening</button>
+    </div>
 
-.task{ font-size:22px; font-weight:700; margin:10px 0; }
+    <div class="task" id="task">—</div>
+
+    <div class="controls">
+      <label for="answer"><b>Antwoord:</b></label>
+      <input type="text" id="answer" placeholder="bv. 123,45 of 123.45">
+      <button id="btn-check">Nakijken</button>
+    </div>
+
+    <div id="grid"></div>
+
+    <div id="feedback"></div>
+  </div>
+</div>
 
 <script>
+let current = null; // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
+
+/* Helpers */
+function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+function formatWithComma(rawStr, decs){
+  let s = String(rawStr);
+  if (decs <= 0) return s;
+  if (s.length <= decs) s = s.padStart(decs+1, '0');
+  const pos = s.length - decs;
+  let out = s.slice(0,pos) + ',' + s.slice(pos);
+  out = out.replace(/,?0+$/,'').replace(/,$/,'');
+  return out;
+}
+function parseStudentAnswer(str){
+  if (!str) return '';
+  let s = String(str).trim().replace(/\s+/g,'').replace(/\./g,',');
+  s = s.replace(/^0+(?=\d)/,'');
+  return s;
+}
+
+/* Genereer één oefening */
+function newExercise(){
+  // eenvoudige mix
+  const aDecs = randInt(0,2) <= 1 ? randInt(0,2) : 0;
+  const bDecs = randInt(0,2);
+  const aIntDigits = randInt(1,3);
+  const bIntDigits = randInt(1,3);
+
+  const aIntMin = aIntDigits===1 ? 0 : 10**(aIntDigits-1);
+  const aIntMax = 10**aIntDigits - 1;
+  const bIntMin = bIntDigits===1 ? 0 : 10**(bIntDigits-1);
+  const bIntMax = 10**bIntDigits - 1;
+
+  const aInt = randInt(aIntMin, aIntMax);
+  const bInt = randInt(bIntMin, bIntMax);
+
+  const aDecPart = aDecs>0 ? String(randInt(0,10**aDecs-1)).padStart(aDecs,'0') : '';
+  const bDecPart = bDecs>0 ? String(randInt(0,10**bDecs-1)).padStart(bDecs,'0') : '';
+
+  const aRaw = String(aInt) + aDecPart;
+  const bRaw = String(bInt) + bDecPart;
+
+  const productRaw = String(Number(aRaw) * Number(bRaw));
+  const productDecs = aDecs + bDecs;
+
+  current = {
+    a: { raw: aRaw, decs: aDecs },
+    b: { raw: bRaw, decs: bDecs },
+    productRaw, productDecs
+  };
+
+  const aShown = formatWithComma(aRaw, aDecs);
+  const bShown = formatWithComma(bRaw, bDecs);
+  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
+  document.getElementById('answer').value = '';
+  document.getElementById('feedback').innerHTML = '';
+
+  buildGrid(current);
+}
+
+/* Rooster met 2 operand-rijen, dikke lijn, tussenproducten, dikke lijn, som */
 function buildGrid(item){
-  // Lengtes zonder komma
-  const aDigits = item.a.raw.split('').map(Number); // bv. "1234" -> [1,2,3,4]
+  const aDigits = item.a.raw.split('').map(Number);
   const bDigits = item.b.raw.split('').map(Number);
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  // Kolommen:
-  // - we voorzien ruimte voor shifts (bLen-1)
-  // - rechts uitlijnen is het belangrijkst voor cijferen
-  // - extra kolom voor mogelijke carry links kan later nog toegevoegd worden
   const cols = Math.max(aLen, bLen) + (bLen - 1);
 
-  // Helper om een rij-cellen te maken (leeg of met inputs/spans)
   const td = (html, extraClass='') => `<td class="${extraClass}">${html||''}</td>`;
-  const emptyRow = (n) => Array.from({length:n}).map(()=>td('')).join('');
 
-  // 1) Factoren (2 rijen), rechts uitgelijnd, readonly cijfers (zonder komma)
   const rowWithNumber = (digits, label) => {
     const blanks = cols - digits.length;
     const cells = [
-      td(label, 'label'),
+      td(label,'label'),
       ...Array.from({length: blanks}).map(()=>td('')),
-      ...digits.map(d => td(`<input class="readonly" value="${d}" readonly>`,''))
+      ...digits.map(d => td(`<input class="readonly" value="${d}" readonly>`))
     ];
     return `<tr>${cells.join('')}</tr>`;
   };
-
-  // 2) Separator-rij: we renderen lege cellen maar met dikke top-border
   const separatorRowTop = () => {
     const cells = [ td('', 'label thick-top') ]
       .concat(Array.from({length: cols}).map(()=>td('', 'thick-top')));
     return `<tr>${cells.join('')}</tr>`;
   };
-
-  // 3) Tussenproducten: bLen rijen, elk met shift naar rechts
-  //    Reken-cellen zijn gewoon <input> waar leerlingen per cijfer kunnen invullen
   const partialRow = (rowIndexFromBottom) => {
-    // rowIndexFromBottom: 0 = onderste rij (eenheden van b), 1 = tientallen, ...
-    const shift = rowIndexFromBottom; // rechts meer blanco cellen
-    const workCells = cols - shift;   // aantal invulbare cellen (rest rechts blank)
+    const shift = rowIndexFromBottom;
+    const workCells = cols - shift;
     const cells = [
       td(`rij ${rowIndexFromBottom+1}`, 'label'),
       ...Array.from({length: workCells}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)),
@@ -84,292 +157,55 @@ function buildGrid(item){
     ];
     return `<tr>${cells.join('')}</tr>`;
   };
-
-  // 4) Tweede separator
-  const separatorRowTop2 = separatorRowTop;
-
-  // 5) Som-rij (eindsom): rechts uitgelijnd invulbare cellen
   const sumRow = () => {
     const cells = [
       td('som','label'),
-      ...Array.from({length: cols}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`,''))
+      ...Array.from({length: cols}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`))
     ];
     return `<tr>${cells.join('')}</tr>`;
   };
 
-  // Bouw de volledige tabel
   let html = `<table class="grid">`;
-
-  // Twee operand-rijen
-  html += rowWithNumber(aDigits, '&times; a'); // label links: × a
-  html += rowWithNumber(bDigits, '&times; b'); // label links: × b
-
-  // Dikke lijn
+  html += rowWithNumber(aDigits, '&times; a');
+  html += rowWithNumber(bDigits, '&times; b');
   html += separatorRowTop();
-
-  // Tussenproducten - van onder naar boven tonen is klassiek; we tonen van boven naar beneden
-  // met rowIndexFromBottom 0..bLen-1
-  for (let k = 0; k < bLen; k++){
-    html += partialRow(k);
-  }
-
-  // Dikke lijn
-  html += separatorRowTop2();
-
-  // Som-rij
+  for (let k = 0; k < bLen; k++){ html += partialRow(k); }
+  html += separatorRowTop();
   html += sumRow();
-
   html += `</table>`;
 
   document.getElementById("grid").innerHTML = html;
 }
-</script>
-  
-.controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:8px; }
 
-.ok{ background:#e6f7f1; padding:8px; border-radius:8px; border:1px solid #c7ecde; }
-.err{ background:#fde8e8; padding:8px; border-radius:8px; border:1px solid #f7caca; }
-.warn{ background:#fff7ed; padding:8px; border-radius:8px; border:1px solid #fed7aa; }
+/* Nakijken (minimum) */
+function checkAnswer(){
+  if (!current) return;
+  const correct = formatWithComma(current.productRaw, current.productDecs);
+  const user = parseStudentAnswer(document.getElementById('answer').value);
 
-.nav{ margin-top:12px; display:flex; gap:10px; }
-</style>
-</head>
-
-<body>
-<div class="wrap">
-  <h1>Vermenigvuldigen — oefenen met cijferen</h1>
-  <p class="lead">Schat eerst, werk dan met het rooster (zonder komma). De komma komt alleen in het eindantwoord.</p>
-
-  <div class="card">
-
-    <!-- Bovenbalk -->
-    <div class="bar">
-      <label for="difficulty"><b>Moeilijkheid:</b></label>
-      <select id="difficulty">
-        <option value="makkelijk">Makkelijk</option>
-        <option value="gemiddeld">Gemiddeld</option>
-        <option value="moeilijk" selected>Moeilijk</option>
-      </select>
-
-      <button id="btn-new" class="btn-main">Nieuwe set (5)</button>
-      <button id="btn-print" class="btn-dark">Print set</button>
-    </div>
-
-    <div id="counter"></div>
-    <div class="task" id="task"></div>
-
-    <div class="controls">
-      <label for="est"><b>Schatting:</b></label>
-      <input id="est" type="text" placeholder="bv. 1200 of 12,5" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;width:200px;">
-      <button id="btn-start" class="btn-sec">Start</button>
-    </div>
-
-    <div id="work" style="display:none">
-      <div id="grid"></div>
-
-      <div class="controls">
-        <label for="answer"><b>Eindantwoord:</b></label>
-        <input id="answer" type="text" placeholder="bv. 123,45" style="padding:8px 10px;border:1px solid var(--line);border-radius:8px;width:220px;">
-        <button id="btn-check" class="btn-main">Nakijken</button>
-      </div>
-
-      <div id="feedback" style="margin-top:10px"></div>
-
-      <div class="nav">
-        <button id="prev" class="btn-sec">Vorige</button>
-        <button id="next" class="btn-sec">Volgende</button>
-      </div>
-    </div>
-
-    <!-- Printbare set -->
-    <div id="print-area" style="display:none;"></div>
-
-  </div>
-</div>
-
-<script>
-/* =============== CONFIG =============== */
-const DIFFS = {
-  makkelijk: { a:[1,2], b:[1,2], dec:[0,1] },
-  gemiddeld: { a:[2,3], b:[1,3], dec:[0,2] },
-  moeilijk:  { a:[3,5], b:[2,3], dec:[0,2] }
-};
-
-let diff = 'moeilijk'; // huidig niveau
-let set = [];          // 5 opgaven
-let index = 0;         // 0..4
-
-/* =============== HELPERS =============== */
-function rand(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-
-function makeNumber(digRange, decRange){
-  const d = rand(digRange[0], digRange[1]);
-  const decimals = rand(decRange[0], decRange[1]);
-
-  const minInt = Math.pow(10, Math.max(0, d-1));
-  const maxInt = Math.pow(10, d) - 1;
-  let intPart = (d===1) ? rand(0,9) : rand(minInt, maxInt);
-  if (decimals === 0) {
-    return { shown:String(intPart), raw:String(intPart), decs:0 };
+  if (!user){
+    document.getElementById('feedback').innerHTML = `<div class="warn">Vul eerst je antwoord in.</div>`;
+    return;
   }
-  let decPart = String(rand(0, Math.pow(10,decimals)-1)).padStart(decimals,'0');
-  return { shown: String(intPart)+','+decPart, raw: String(intPart)+decPart, decs: decimals };
-}
-
-function insertComma(raw, decs){
-  if (decs <= 0) return raw;
-  let s = String(raw);
-  if (s.length <= decs) s = s.padStart(decs+1, '0');
-  const pos = s.length - decs;
-  return s.slice(0,pos) + ',' + s.slice(pos);
-}
-
-/* =============== SET =============== */
-function newSet(){
-  const cfg = DIFFS[diff];
-  set = [];
-  for (let i=0;i<5;i++){
-    const a = makeNumber(cfg.a, cfg.dec);
-    const b = makeNumber(cfg.b, cfg.dec);
-    const productRaw  = String(Number(a.raw) * Number(b.raw));
-    const productDecs = a.decs + b.decs;
-    set.push({ a, b, product: productRaw, decs: productDecs });
-  }
-  index = 0;
-  render();
-}
-
-/* =============== RENDER =============== */
-function render(){
-  const item = set[index];
-  if (!item){ return; }
-
-  document.getElementById("counter").textContent = `Oefening ${index+1} van 5`;
-  document.getElementById("task").textContent = `${item.a.shown} × ${item.b.shown} =`;
-  document.getElementById("est").value = '';
-  document.getElementById("answer").value = '';
-  document.getElementById("feedback").innerHTML = '';
-  document.getElementById("work").style.display = 'none';
-
-  buildGrid(item);
-
-  // nav
-  document.getElementById("prev").disabled = (index===0);
-  document.getElementById("next").disabled = (index===4);
-
-  // update printarea
-  buildPrintArea();
-}
-
-/* =============== GRID =============== */
-function buildGrid(item){
-  const aLen = item.a.raw.length;
-  const bLen = item.b.raw.length;
-  const rows = bLen;
-  const cols = aLen + bLen;
-
-  let html = "<table class='grid'>";
-  for(let r=0;r<rows;r++){
-    html += "<tr>";
-    for(let c=0;c<cols;c++){
-      html += "<td><input inputmode='numeric' pattern='[0-9]*' maxlength='1'></td>";
-    }
-    html += "</tr>";
-  }
-  html += "</table>";
-  document.getElementById("grid").innerHTML = html;
-}
-
-/* =============== START/ CHECK =============== */
-function startExercise(){
-  const est = document.getElementById("est").value.trim();
-  if(!est){ alert('Vul eerst je schatting in.'); return; }
-  document.getElementById("work").style.display = 'block';
-}
-
-function checkExercise(){
-  const item = set[index];
-  const user = document.getElementById("answer").value.trim().replace('.', ',');
-  const correct = insertComma(item.product, item.decs);
-
-  const fb = document.getElementById("feedback");
-  if (user === correct){
-    fb.innerHTML = `<div class="ok">✔ Correct! Antwoord: <b>${correct}</b></div>`;
-  } else {
+  const norm = s => s.replace(/\s/g,'').replace(/\./g,',').replace(/,?0+$/,'').replace(/,$/,'').replace(/^0+(?=\d)/,'');
+  if (norm(user) === norm(correct)){
+    document.getElementById('feedback').innerHTML = `<div class="ok">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+  }else{
     const digitsEq = user.replace(/[^\d]/g,'') === correct.replace(/[^\d]/g,'');
     if (digitsEq){
-      fb.innerHTML = `<div class="warn">⚠ De cijfers kloppen, maar de komma lijkt verkeerd. Dit product heeft <b>${item.decs}</b> kommacijfer(s). Correct is: <b>${correct}</b>.</div>`;
-    } else {
-      fb.innerHTML = `<div class="err">✖ Niet juist. Correct is: <b>${correct}</b>.</div>`;
+      document.getElementById('feedback').innerHTML = `<div class="warn">De cijfers kloppen, maar de komma lijkt verkeerd. Correct: <b>${correct}</b>.</div>`;
+    }else{
+      document.getElementById('feedback').innerHTML = `<div class="err">Niet juist. Correct: <b>${correct}</b>.</div>`;
     }
   }
 }
 
-/* =============== NAV/ PRINT =============== */
-function nextEx(){ if(index<4){ index++; render(); } }
-function prevEx(){ if(index>0){ index--; render(); } }
-
-function buildPrintArea(){
-  const wrap = [];
-  wrap.push(`<div style="padding:16px"><h2 style="margin:0 0 8px">Vermenigvuldigen — set van 5</h2><div style="font-size:12px;color:#475569">Moeilijkheid: ${document.getElementById('difficulty').value}</div></div>`);
-  set.forEach((it, idx)=>{
-    const aLen = it.a.raw.length;
-    const bLen = it.b.raw.length;
-    const rows = bLen;
-    const cols = aLen + bLen;
-
-    let table = `<table style="border-collapse:collapse;width:100%;max-width:700px">`;
-    table += `<tbody>`;
-    for(let r=0;r<rows;r++){
-      table += `<tr>`;
-      for(let c=0;c<cols;c++){
-        table += `<td style="border:1px solid #cbd5e1;text-align:center;width:32px;height:30px;">&nbsp;</td>`;
-      }
-      table += `</tr>`;
-    }
-    table += `</tbody></table>`;
-
-    wrap.push(`
-      <div style="padding:0 16px 16px; page-break-inside:avoid;">
-        <div style="font-weight:700;font-size:18px;margin:6px 0;">${idx+1}. ${it.a.shown} × ${it.b.shown} = ________</div>
-        <div style="font-size:13px;color:#475569;margin-bottom:6px">Schatting: ____________________</div>
-        ${table}
-      </div>
-    `);
-  });
-  document.getElementById("print-area").innerHTML = wrap.join('');
-}
-
-function doPrint(){
-  // Alleen het printdeel zichtbaar maken via CSS had ook gekund;
-  // hier volstaat window.print() omdat we een aparte print-area renderen.
-  window.print();
-}
-
-/* =============== EXPORT NAAR WINDOW (zodat listeners altijd werken) =============== */
-window.newSet = newSet;
-window.render = render;
-window.startExercise = startExercise;
-window.checkExercise = checkExercise;
-window.nextEx = nextEx;
-window.prevEx = prevEx;
-window.doPrint = doPrint;
-
-/* =============== BINDINGS NA DOM-LOAD =============== */
+/* Events */
 window.addEventListener('DOMContentLoaded', ()=>{
-  const $ = id => document.getElementById(id);
-  $('btn-new').addEventListener('click', newSet);
-  $('btn-print').addEventListener('click', doPrint);
-  $('btn-start').addEventListener('click', startExercise);
-  $('btn-check').addEventListener('click', checkExercise);
-  $('next').addEventListener('click', nextEx);
-  $('prev').addEventListener('click', prevEx);
-  $('difficulty').addEventListener('change', e => { diff = e.target.value; newSet(); });
-
-  // Init
-  newSet();
+  document.getElementById('btn-new').addEventListener('click', newExercise);
+  document.getElementById('btn-check').addEventListener('click', checkAnswer);
+  newExercise();
 });
 </script>
-
 </body>
 </html>
