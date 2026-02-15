@@ -59,7 +59,7 @@
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
 
-  /* Feedback */
+  /* Feedback-blokken */
   .okmsg{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .warnmsg{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .errmsg{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
@@ -182,15 +182,7 @@ function newExercise(){
   buildGrid(current);
 }
 
-/* ===== Rooster =====
-   Kolommen: 1 (linkse klad/carry) + aLen + (shift rechts) --> cols = 1 + aLen + bLen
-   Rijen:
-   1) factor A (prefill aan = readonly cijfers; uit = lege invulcellen met pijltjesnavigatie)
-   2) factor B (idem) + dikke lijn eronder
-   3) bLen rijen tussenproducten (invulbaar), met shift
-   4) som-rij (invulbaar), met dikke lijn erboven
-   ▸ Pijltjesnavigatie: alle inputs met data-r/data-c (incl. factor-rijen wanneer prefill uit)
-*/
+/* ===== Rooster (bouw en pijltjes) ===== */
 function buildGrid(item){
   const aDigits = item.a.raw.split('');
   const bDigits = item.b.raw.split('');
@@ -210,10 +202,10 @@ function buildGrid(item){
       const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
       return `<tr>${first}${left}${body}</tr>`;
     } else {
-      // pijltjesnavigatie: data-r = -2
+      // data-r = -2 (pijltjesnavigatie actief)
       let rowHtml = '';
       for (let c=0;c<cols-1;c++){
-        const cc = c+1; // kolom 1..cols-1 (kolom 0 is de grijze)
+        const cc = c+1; // kolom 1..cols-1 (kolom 0 is grijs)
         rowHtml += td(`<input data-r="-2" data-c="${cc}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
       }
       return `<tr>${first}${rowHtml}</tr>`;
@@ -229,7 +221,7 @@ function buildGrid(item){
       const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
       return `<tr class="thick-after">${first}${left}${body}</tr>`;
     } else {
-      // pijltjesnavigatie: data-r = -1
+      // data-r = -1
       let rowHtml = '';
       for (let c=0;c<cols-1;c++){
         const cc = c+1;
@@ -284,7 +276,7 @@ function buildGrid(item){
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // ===== Pijltjes-navigatie =====
+  // ===== Pijltjes-navigatie (factor-rijen als prefill uit, + tussenproducten + som) =====
   const gridEl = document.getElementById('grid');
   gridEl.addEventListener('keydown', (e)=>{
     const t = e.target;
@@ -297,19 +289,15 @@ function buildGrid(item){
     const r = Number(rAttr), c = Number(cAttr);
     const table = document.getElementById('grid-table');
     const colsCount = Number(table.getAttribute('data-cols'));
-    const bLen = Number(table.querySelectorAll('tr').length) - 3; // ruwe schatting is niet nodig; we weten maxR elders
 
-    const minR = prefillOperands ? 0 : -2;  // als prefill uit: factor-rijen (-2, -1) ook navigeren
-    const maxR = (()=> {
-      // som-rij staat op index bLen
-      let max = 0;
-      // lees grootste r uit inputs
-      const last = gridEl.querySelector('input[data-r]:last-of-type');
-      return last ? Number(last.getAttribute('data-r')) : (prefillOperands? bLen : bLen);
-    })();
+    const minR = prefillOperands ? 0 : -2;  // als prefill uit: -2 (A), -1 (B) ook navigeren
+    // som-rij zit op bLen; we lezen maxR vanuit inputs
+    const inputsWithR = gridEl.querySelectorAll('input[data-r]');
+    let maxR = 0;
+    inputsWithR.forEach(inp => { const rv = Number(inp.getAttribute('data-r')); if (!Number.isNaN(rv) && rv > maxR) maxR = rv; });
 
     let nr = r, nc = c;
-    if (e.key === 'ArrowLeft'){ nc = Math.max(0, c - 1); e.preventDefault(); }
+    if (e.key === 'ArrowLeft'){ nc = Math.max(1, c - 1); e.preventDefault(); }      // kolom 0 = grijs (carry), sla je meestal over
     else if (e.key === 'ArrowRight'){ nc = Math.min(colsCount-1, c + 1); e.preventDefault(); }
     else if (e.key === 'ArrowUp'){ nr = Math.max(minR, r - 1); e.preventDefault(); }
     else if (e.key === 'ArrowDown'){ nr = Math.min(maxR, r + 1); e.preventDefault(); }
@@ -341,15 +329,7 @@ function swapOperands(){
   buildGrid(current);
 }
 
-/* ===== Nakijken =====
-   - Eindantwoord (zoals eerder)
-   - Tussenstappen:
-     • Voor elke tussenproduct-rij r (0=onderste): core + shift worden vergeleken
-       - core (aLen cellen): b_r × A (mod 10), carries verwerkt; leading carry valt links en wordt niet beoordeeld
-       - shift (k=r cellen rechts): verwacht 0
-     • Som-rij (r=bLen): rechts uitgelijnd productRaw; links daarvan niet beoordeeld
-     • Links klad/carry-kolom en linker pads worden niet beoordeeld
-*/
+/* ===== Nakijken ===== */
 function checkAnswer(){
   if (!current) return;
 
@@ -381,7 +361,6 @@ function checkAnswer(){
     const aLen = aStr.length;
     const bLen = bStr.length;
 
-    // helper: markeer cel (r,c) bad
     const markBad = (r,c)=>{
       const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
       if (inp) inp.parentElement.classList.add('badcell');
@@ -391,18 +370,16 @@ function checkAnswer(){
       return inp ? (inp.value||'') : '';
     };
 
-    // aDigits (array numbers), bDigits (array numbers)
     const aDigits = aStr.split('').map(d=>Number(d));
     const bDigits = bStr.split('').map(d=>Number(d));
 
     // ---- TUSSENPRODUCTEN ----
     for (let r=0; r<bLen; r++){
-      const k = r;                          // shift rechts
-      const coreStart = cols - k - aLen;    // eerste kolom van core
-      const coreEnd   = cols - k - 1;       // laatste kolom van core
+      const k = r;
+      const coreStart = cols - k - aLen;
+      const coreEnd   = cols - k - 1;
 
-      const bDigit = bDigits[bLen-1-r];     // onderaan = eenheden van B
-      // reken core uit: bDigit * A, neem enkel laatste aLen cijfers; leading carry valt links
+      const bDigit = bDigits[bLen-1-r];
       let carry = 0;
       const coreDigits = new Array(aLen);
       for (let j=aLen-1; j>=0; j--){
@@ -416,28 +393,27 @@ function checkAnswer(){
         const got  = valAt(r,c);
         if (got !== want) markBad(r,c);
       }
-      // shift vergelijken (verwacht 0)
+      // shift (rechts) moet 0 zijn
       for (let c=cols-k; c<cols; c++){
         const want = '0';
         const got  = valAt(r,c);
         if (got !== want) markBad(r,c);
       }
-      // links van core (c=0..coreStart-1) NIET beoordelen (klad/carry/pads)
+      // links van core niet beoordelen (klad/carry/pads)
     }
 
     // ---- SOM-RIJ ----
     const rSum = bLen;
     const prod = String(current.productRaw); // digits only
     const L = prod.length;
-    // rechts uitlijnen over kolommen 1..cols-1
     for (let c=1; c<cols; c++){
-      const offsetFromRight = (cols-1) - c;         // 0 voor laatste kolom
-      const idx = L-1 - offsetFromRight;            // index in product
+      const offsetFromRight = (cols-1) - c;
+      const idx = L-1 - offsetFromRight;
       if (idx >= 0){
         const want = prod[idx];
         const got  = valAt(rSum,c);
         if (got !== want) markBad(rSum,c);
-      } // links vóór het product niet beoordelen
+      }
     }
   }
 
@@ -481,6 +457,15 @@ window.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
   btnSwap.addEventListener('click', swapOperands);
+
+  // ✅ Enter in het antwoordveld = Nakijken
+  const ans = document.getElementById('answer');
+  ans.addEventListener('keydown', (e)=>{
+    if (e.key === 'Enter'){
+      e.preventDefault();
+      checkAnswer();
+    }
+  });
 
   // Start
   prefillOperands = false; // standaard UIT
