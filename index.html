@@ -333,21 +333,35 @@ function swapOperands(){
 function checkAnswer(){
   if (!current) return;
 
-  /* 1) Eindantwoord */
+  
+// 1) Eindantwoord (nu met hard stop bij leeg antwoord)
   const correct = formatWithComma(current.productRaw, current.productDecs);
-  const user = normalizeStudent(document.getElementById('answer').value);
+  const userRaw = document.getElementById('answer').value;
+  const user = normalizeStudent(userRaw);
   const fbEl = document.getElementById('feedback');
 
+  // Verwijder eerdere foutmarkeringen
+  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
+
+  // 🔴 NIEUW: als antwoord leeg is → waarschuwing tonen en STOPPEN
+  if (!user || !/\d/.test(user)) {
+    fbEl.innerHTML = `<div class="warnmsg">Vul eerst je eindantwoord in en probeer opnieuw.</div>`;
+    return;  // ⬅️ belangrijk: NIET verdergaan naar tussenstappen
+  }
+
+  // Vergelijk eindantwoord
   let fbHtml = '';
-  if (!user){
-    fbHtml += `<div class="warnmsg">Vul eerst je antwoord in.</div>`;
-  } else if (normalizeStudent(user) === normalizeStudent(correct)){
+  const onlyDigits = s => String(s||'').replace(/[^\d]/g,'');
+  if (normalizeStudent(user) === normalizeStudent(correct)){
     fbHtml += `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
   } else if (onlyDigits(user) === onlyDigits(correct)){
     fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
   } else {
     fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
   }
+
+  fbEl.innerHTML = fbHtml;
+
 
   /* 2) Tussenstappen nakijken */
   // Clear oude bad-markeringen
