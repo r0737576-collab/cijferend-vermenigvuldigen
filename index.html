@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (set van 5 + print)</title>
+<title>Vermenigvuldigen — cijferen (1‑voor‑1 + set van 5 print)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -21,11 +21,14 @@
   .bar{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .bar select, .bar input[type="checkbox"]{ transform: translateY(1px); }
   .bar label{ color:#0f172a; }
-  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 0; }
+
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 0; align-items:center; }
+  .muted{ color:#64748b; font-size:14px; }
 
   button{
     padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
   }
+  button:disabled{ opacity:.5; cursor:not-allowed; }
   input[type="text"]{
     padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
   }
@@ -51,10 +54,8 @@
     background:transparent;
     text-align:center; font-size:16px;
   }
-  /* ENKEL de uiterst linkse kolom lichtgrijs (klad/carry) */
   .grid td.first-col input{ background:var(--firstcol); color:#0f172a; }
 
-  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij!!) */
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
 
@@ -62,28 +63,20 @@
   .okmsg{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .warnmsg{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
   .errmsg{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
-
-  /* Per-cel fout (na Nakijken) */
   .badcell input{ background: var(--bad) !important; }
 
-  /* Live hints (optioneel, behouden) */
+  /* Live hints */
   .live-hints{
     background:var(--hint);
     border:1px solid #fed7aa;
     padding:8px 10px; border-radius:8px;
     margin-top:8px; font-size:14px; color:#7c2d12;
   }
-  @keyframes needZeroBlink {
-    0%, 100% { background-color: var(--bad); }
-    50%      { background-color: transparent; }
-  }
+  @keyframes needZeroBlink { 0%,100%{background-color:var(--bad);} 50%{background-color:transparent;} }
   .blink-zero input{ animation: needZeroBlink 0.9s ease-in-out infinite; }
 
-  /* Som-rij knipperen bij mismatch met antwoord */
-  @keyframes sumRowBlink {
-    0%, 100% { background-color: var(--bad); }
-    50%      { background-color: transparent; }
-  }
+  /* Som-rij knippert bij mismatch met antwoord */
+  @keyframes sumRowBlink { 0%,100%{background-color:var(--bad);} 50%{background-color:transparent;} }
   .sum-blink td { animation: sumRowBlink 0.9s ease-in-out 4; }
 
   .note{ margin-top:8px; font-size:13px; color:#334155; }
@@ -117,7 +110,6 @@
 <div class="wrap">
   <h1>Vermenigvuldigen — cijferen</h1>
 
-  <!-- ======== SCHERM-DEEL ======== -->
   <div class="card screen-only">
     <!-- Moeilijkheid + toggles -->
     <div class="bar">
@@ -136,7 +128,12 @@
     <!-- Acties -->
     <div class="actions">
       <button id="btn-new">Nieuwe oefening</button>
+
       <button id="btn-newset">Nieuwe set (5)</button>
+      <span id="set-progress" class="muted" style="display:none;">Oefening 1/5</span>
+      <button id="btn-prev" disabled style="display:none;">Vorige</button>
+      <button id="btn-next" disabled style="display:none;">Volgende</button>
+
       <button id="btn-printset">Print set</button>
     </div>
 
@@ -156,12 +153,11 @@
 
     <div id="feedback"></div>
 
-    <!-- Voorbeeld van de set (zodat je kan printen) -->
+    <!-- PRINT: de set wordt hier in @media print getoond -->
     <div id="print-area" class="print-only"></div>
-    <div id="print-preview" class="screen-only" style="margin-top:14px;"></div>
   </div>
 
-  <!-- ======== PRINT-ALLEEN (fallback container) ======== -->
+  <!-- Losse print fallback -->
   <div id="print-area-standalone" class="print-only"></div>
 </div>
 
@@ -188,22 +184,24 @@ function normalizeStudent(s){
 }
 function onlyDigits(s){ return String(s||'').replace(/[^\d]/g,''); }
 
-/* ===== Moeilijkheidsconfig ===== */
+/* ===== Config ===== */
 const DIFF = {
   makkelijk: { min:10,  max:100,  decMax:1 },
   gemiddeld: { min:10,  max:1000, decMax:2 },
   moeilijk:  { min:10,  max:1000, decMax:3 }
 };
 
-let current = null;           // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
+let current = null;     // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
 let currentDiff = 'moeilijk';
 let allowDec = true;
 let prefillOperands = false;
 let allowSwap = false;
 
-let currentSet = [];          // array van 5 items in hetzelfde formaat als current
+let setMode = false;
+let currentSet = [];    // array van 5 opgaven (zelfde structuur als current + optioneel .cols/.aLen/.bLen/.grid/.answer)
+let setIndex = 0;
 
-/* Getal binnen 10..max, met 0..decMax decim., 1000 => geen decim. */
+/* Getal volgens instellingen */
 function makeNumberBounded(cfg){
   const intPart = randInt(cfg.min, cfg.max);
   let decs = allowDec ? randInt(0, cfg.decMax) : 0;
@@ -214,8 +212,9 @@ function makeNumberBounded(cfg){
   return { raw, decs, shown };
 }
 
-/* ===== Oefening (1 per keer) ===== */
+/* ===== Eén oefening (los van set) ===== */
 function newExercise(){
+  setMode = false; updateSetUI();
   const cfg = DIFF[currentDiff] || DIFF.moeilijk;
   const a = makeNumberBounded(cfg);
   const b = makeNumberBounded(cfg);
@@ -232,12 +231,99 @@ function newExercise(){
   buildGrid(current);
 }
 
+/* ===== SET van 5 ===== */
+function startNewSet(){
+  const cfg = DIFF[currentDiff] || DIFF.moeilijk;
+  currentSet = [];
+  for(let i=0;i<5;i++){
+    const a = makeNumberBounded(cfg);
+    const b = makeNumberBounded(cfg);
+    const productRaw  = String(Number(a.raw) * Number(b.raw));
+    const productDecs = a.decs + b.decs;
+    currentSet.push({ a:{raw:a.raw,decs:a.decs,shown:a.shown},
+                      b:{raw:b.raw,decs:b.decs,shown:b.shown},
+                      productRaw, productDecs,
+                      grid:{}, answer:'' });
+  }
+  setIndex = 0;
+  setMode = true; updateSetUI();
+  showSetExercise(setIndex);
+}
+function updateSetUI(){
+  const sp = document.getElementById('set-progress');
+  const prev = document.getElementById('btn-prev');
+  const next = document.getElementById('btn-next');
+  if (setMode){
+    sp.style.display = '';
+    prev.style.display = '';
+    next.style.display = '';
+    sp.textContent = `Oefening ${setIndex+1}/5`;
+    prev.disabled = (setIndex===0);
+    next.disabled = (setIndex===4);
+  }else{
+    sp.style.display = 'none';
+    prev.style.display = 'none';
+    next.style.display = 'none';
+  }
+}
+function showSetExercise(i){
+  // laad i‑de opgave in current en teken
+  const item = currentSet[i];
+  current = { a:{raw:item.a.raw,decs:item.a.decs},
+              b:{raw:item.b.raw,decs:item.b.decs},
+              productRaw:item.productRaw, productDecs:item.productDecs };
+  document.getElementById('task').textContent =
+    `${formatWithComma(item.a.raw,item.a.decs)} × ${formatWithComma(item.b.raw,item.b.decs)} =`;
+  document.getElementById('feedback').innerHTML = '';
+  buildGrid(current);
+
+  // reeds opgeslagen rooster terugplaatsen
+  restoreGridValues(item.grid);
+  // antwoord herstellen
+  document.getElementById('answer').value = item.answer || '';
+
+  updateSwapVisibility();
+  updateSetUI();
+}
+function saveCurrentIntoSet(){
+  if (!setMode) return;
+  const gv = collectGridValues();
+  const ans = document.getElementById('answer').value || '';
+  currentSet[setIndex].grid = gv;
+  currentSet[setIndex].answer = ans;
+}
+
+/* Roosterwaarden opslaan/herstellen */
+function collectGridValues(){
+  const table = document.getElementById('grid-table');
+  const out = {};
+  if (!table) return out;
+  table.querySelectorAll('input[data-r][data-c]').forEach(inp=>{
+    const r = inp.getAttribute('data-r');
+    const c = inp.getAttribute('data-c');
+    out[`${r},${c}`] = inp.value || '';
+  });
+  return out;
+}
+function restoreGridValues(map){
+  if (!map) return;
+  const table = document.getElementById('grid-table');
+  if (!table) return;
+  Object.keys(map).forEach(key=>{
+    const [r,c] = key.split(',');
+    const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+    if (inp) inp.value = map[key];
+  });
+  // Live hints her-evalueren na herstel
+  validateShiftZerosOnly();
+}
+
 /* ===== Rooster (bouw + pijltjes) ===== */
 function buildGrid(item){
   const aDigits = item.a.raw.split('');
   const bDigits = item.b.raw.split('');
   const aLen = aDigits.length, bLen = bDigits.length;
-  const cols = 1 + aLen + bLen; // 1 grijs + kern + shift
+  const cols = 1 + aLen + bLen;
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
@@ -249,14 +335,16 @@ function buildGrid(item){
       const left = Array.from({length:blanks}).map(()=>td('')).join('');
       const body = aDigits.map(d=>td(`<input value="${d}" readonly>`)).join('');
       return `<tr>${first}${left}${body}</tr>`;
-    }else{
+    } else {
       let rowHtml = '';
-      for(let c=1;c<cols;c++) rowHtml += td(`<input data-r="-2" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      for(let c=1;c<cols;c++){
+        rowHtml += td(`<input data-r="-2" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      }
       return `<tr>${first}${rowHtml}</tr>`;
     }
   })();
 
-  // Factor B (+ dikke lijn)
+  // Factor B
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`,'first-col');
@@ -264,9 +352,11 @@ function buildGrid(item){
       const left = Array.from({length:blanks}).map(()=>td('')).join('');
       const body = bDigits.map(d=>td(`<input value="${d}" readonly>`)).join('');
       return `<tr class="thick-after">${first}${left}${body}</tr>`;
-    }else{
+    } else {
       let rowHtml = '';
-      for(let c=1;c<cols;c++) rowHtml += td(`<input data-r="-1" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      for(let c=1;c<cols;c++){
+        rowHtml += td(`<input data-r="-1" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      }
       return `<tr class="thick-after">${first}${rowHtml}</tr>`;
     }
   })();
@@ -282,7 +372,7 @@ function buildGrid(item){
     partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // Som‑rij (+ dikke lijn)
+  // Som
   const rowSum = (() => {
     const r=bLen; let rowHtml='';
     for(let c=0;c<cols;c++){
@@ -303,15 +393,15 @@ function buildGrid(item){
   const gridDiv = document.getElementById('grid');
   gridDiv.innerHTML = html;
 
-  // Reset hints bij (her)opbouw
+  // reset hints
   const hintsBox = document.getElementById('live-hints');
   if (hintsBox){ hintsBox.style.display='none'; hintsBox.innerHTML=''; }
 
-  // Nota
+  // Notatekst
   document.getElementById('grid-note').textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // Pijltjestoets‑navigatie
+  // Pijltjes
   const gridEl = document.getElementById('grid');
   gridEl.addEventListener('keydown',(e)=>{
     const t=e.target; if(!(t instanceof HTMLInputElement)) return;
@@ -332,70 +422,40 @@ function buildGrid(item){
     const next=gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`); if(next) next.focus();
   });
 
-  // Live hints tijdens invullen (alleen shift ≠ 0)
+  // Live hints op input
   gridEl.addEventListener('input',(e)=>{ if(e.target instanceof HTMLInputElement) validateShiftZerosOnly(); });
 }
 
-/* Live hint: enkel bij ≠ 0 in rechter shift-vakken (knipper rood + correcte tekst) */
-function placeLabel(k){
-  if (k === 1) return 'tiental';
-  if (k === 2) return 'honderdtal';
-  if (k === 3) return 'duizendtal';
-  return `×10^${k}`;
-}
-function zerosGrammar(k){
-  const verb  = (k === 1) ? 'hoort' : 'horen';
-  const count = (k === 1) ? '1 nul' : `${k} nullen`;
-  return { verb, count };
-}
-function validateShiftZerosOnly() {
+/* Live hint: shift‑vakken ≠ 0 → knipper & taalkundige tip */
+function placeLabel(k){ if(k===1)return'​tiental'; if(k===2)return'​honderdtal'; if(k===3)return'​duizendtal'; return `×10^${k}`; }
+function zerosGrammar(k){ return { verb:(k===1?'hoort':'horen'), count:(k===1?'1 nul':`${k} nullen`) }; }
+function validateShiftZerosOnly(){
   const table = document.getElementById('grid-table');
   const hintsBox = document.getElementById('live-hints');
   if (!table || !hintsBox) return;
-
   const cols = Number(table.getAttribute('data-cols'));
   const bStr = table.getAttribute('data-b') || '';
   const bLen = bStr.length;
 
-  // Reset oude markeringen
-  table.querySelectorAll('td').forEach(td => td.classList.remove('blink-zero'));
+  table.querySelectorAll('td').forEach(td=>td.classList.remove('blink-zero'));
 
-  const messages = [];
-
-  for (let r = 0; r < bLen; r++) {
-    const k = r;               // aantal shifts rechts
-    if (k <= 0) continue;      // geen shift-positie
-
-    let anyWrong = false;
-
-    // Rechter k kolommen: c = cols - k .. cols - 1
-    for (let c = cols - k; c < cols; c++) {
-      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-      if (!inp) continue;
-      const val = (inp.value || '').trim();
-
-      // Alleen tip bij expliciet ≠ '0' (leeg = nog niks ingevuld → geen tip)
-      if (val !== '' && val !== '0') {
-        anyWrong = true;
-        const td = inp.parentElement; if (td) td.classList.add('blink-zero'); // rood knipperen
-      }
+  const msgs = [];
+  for(let r=0;r<bLen;r++){
+    const k=r; if(k<=0) continue;
+    let anyWrong=false;
+    for(let c=cols-k;c<cols;c++){
+      const inp=table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+      if(!inp) continue;
+      const val=(inp.value||'').trim();
+      if(val!=='' && val!=='0'){ anyWrong=true; const td=inp.parentElement; if(td) td.classList.add('blink-zero'); }
     }
-
-    if (anyWrong) {
-      const {verb, count} = zerosGrammar(k);
-      messages.push(
-        `Rij ${r + 1}: rechts ${verb} ${count} te staan, <b>omdat je vermenigvuldigt met een ${placeLabel(k)}</b>.`
-      );
+    if(anyWrong){
+      const {verb,count}=zerosGrammar(k);
+      msgs.push(`Rij ${r+1}: rechts ${verb} ${count} te staan, <b>omdat je vermenigvuldigt met een ${placeLabel(k)}</b>.`);
     }
   }
-
-  if (messages.length) {
-    hintsBox.style.display = 'block';
-    hintsBox.innerHTML = '🟠 <b>Tip:</b> ' + messages.join(' ');
-  } else {
-    hintsBox.style.display = 'none';
-    hintsBox.innerHTML = '';
-  }
+  if(msgs.length){ hintsBox.style.display='block'; hintsBox.innerHTML='🟠 <b>Tip:</b> '+msgs.join(' '); }
+  else { hintsBox.style.display='none'; hintsBox.innerHTML=''; }
 }
 
 /* Omdraaien */
@@ -413,11 +473,10 @@ function swapOperands(){
   buildGrid(current);
 }
 
-/* Nakijken (ongewijzigde flow) */
+/* Nakijken (flow zoals besproken) */
 function checkAnswer(){
   if(!current) return;
   const fbEl=document.getElementById('feedback');
-
   // Reset markeringen
   document.querySelectorAll('#grid td').forEach(td=>td.classList.remove('badcell'));
   document.querySelectorAll('#grid tr.sum-blink').forEach(tr=>tr.classList.remove('sum-blink'));
@@ -433,7 +492,7 @@ function checkAnswer(){
   const isExact=(normalizeStudent(user)===normalizeStudent(correct));
   const isDigitsOnly=(userDigits===correctDigits);
 
-  // Som‑rij digits (zoals leerling invult)
+  // Som‑rij digits (zoals ingevuld)
   const table=document.getElementById('grid-table');
   let sumStr=''; let rSum=null; let cols=null;
   if(table){
@@ -448,9 +507,9 @@ function checkAnswer(){
 
   if(isExact){
     fbEl.innerHTML=`<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
-    runPerCellChecks(); return;
+    runPerCellChecks(); 
+    return;
   }
-
   if(!sumStr || sumStr!==userDigits){
     fbEl.innerHTML=`<div class="warnmsg">Laat je antwoord overeenkomen met de onderste som‑rij.</div>`;
     if(table && rSum!==null){
@@ -460,7 +519,6 @@ function checkAnswer(){
     }
     return;
   }
-
   fbEl.innerHTML = isDigitsOnly
     ? `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`
     : `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
@@ -476,7 +534,6 @@ function checkAnswer(){
     const markBad=(r,c)=>{const inp=table.querySelector(`input[data-r="${r}"][data-c="${c}"]`); if(inp) inp.parentElement.classList.add('badcell');};
     const valAt=(r,c)=>{const inp=table.querySelector(`input[data-r="${r}"][data-c="${c}"]`); return inp?(inp.value||''):'';};
 
-    // Tussenproducten
     for(let r=0;r<bLen;r++){
       const k=r; const coreStart=cols-k-aLen; const coreEnd=cols-k-1;
       const bDigit=bDigits[bLen-1-r]; let carry=0; const coreDigits=new Array(aLen);
@@ -485,7 +542,6 @@ function checkAnswer(){
       for(let c=cols-k;c<cols;c++){ const want='0'; const got=valAt(r,c); if(got!==want) markBad(r,c); }
     }
 
-    // Som‑rij
     const rSumLocal=bLen; const prod=String(current.productRaw); const L=prod.length;
     for(let c=1;c<cols;c++){
       const offset=(cols-1)-c; const idx=L-1-offset;
@@ -494,66 +550,55 @@ function checkAnswer(){
   }
 }
 
-/* ===== Set van 5 + Print ===== */
-function buildSet(n=5){
-  currentSet = [];
-  const cfg = DIFF[currentDiff] || DIFF.moeilijk;
-  for(let i=0;i<n;i++){
-    const a = makeNumberBounded(cfg);
-    const b = makeNumberBounded(cfg);
-    const productRaw  = String(Number(a.raw) * Number(b.raw));
-    const productDecs = a.decs + b.decs;
-    currentSet.push({
-      a:{ raw:a.raw, decs:a.decs, shown:a.shown },
-      b:{ raw:b.raw, decs:b.decs, shown:b.shown },
-      productRaw, productDecs
-    });
-  }
-  renderPrintSet();  // toon voorbeeld
-}
-
-/* Render één statisch (print) rooster (zonder inputs) */
-function renderStaticGrid(item, prefill){
+/* ===== PRINT SET ===== */
+function renderStaticGridFilled(item, mapValues){
+  // Bouw een statische pgrid met dezelfde structuur & plaats ingevulde tekens
   const aDigits = item.a.raw.split('');
   const bDigits = item.b.raw.split('');
   const aLen = aDigits.length, bLen = bDigits.length;
-  const cols = 1 + aLen + bLen; // 1 grijs + kern + shift
+  const cols = 1 + aLen + bLen;
 
   const td = (txt='', cls='') => `<td class="${cls}">${txt}</td>`;
-  const blanks = (n) => Array.from({length:n}).map(()=>td()).join('');
+  const g = (r,c)=> (mapValues && mapValues[`${r},${c}`]) ? mapValues[`${r},${c}`] : '';
 
   // Factor A
   const rowA = (() => {
-    const leftPads = (cols - 1) - aLen;
+    const blanks = (cols - 1) - aLen;
     const first = td('', 'first-col');
-    if (prefill){
-      return `<tr>${first}${blanks(leftPads)}${aDigits.map(d=>td(d)).join('')}</tr>`;
-    }else{
-      return `<tr>${first}${blanks(cols-1)}</tr>`;
+    if (prefillOperands){
+      return `<tr>${first}${Array.from({length:blanks}).map(()=>td()).join('')}${aDigits.map(d=>td(d)).join('')}</tr>`;
+    } else {
+      // lees ingevulde studentencijfers op data-r=-2, c=1..cols-1
+      const cells = Array.from({length:cols-1}).map((_,i)=>td(g(-2, i+1))).join('');
+      return `<tr>${first}${cells}</tr>`;
     }
   })();
 
-  // Factor B + dikke lijn eronder
+  // Factor B
   const rowB = (() => {
-    const leftPads = (cols - 1) - bLen;
+    const blanks = (cols - 1) - bLen;
     const first = td('', 'first-col');
-    if (prefill){
-      return `<tr class="thick-after">${first}${blanks(leftPads)}${bDigits.map(d=>td(d)).join('')}</tr>`;
-    }else{
-      return `<tr class="thick-after">${first}${blanks(cols-1)}</tr>`;
+    if (prefillOperands){
+      return `<tr class="thick-after">${first}${Array.from({length:blanks}).map(()=>td()).join('')}${bDigits.map(d=>td(d)).join('')}</tr>`;
+    } else {
+      const cells = Array.from({length:cols-1}).map((_,i)=>td(g(-1, i+1))).join('');
+      return `<tr class="thick-after">${first}${cells}</tr>`;
     }
   })();
 
-  // Tussenproducten (leeg, maar met shift-structuur als raster)
+  // Tussenproducten
   let partials = '';
-  for (let r=0;r<bLen;r++){
-    const row = Array.from({length:cols}).map((_,c)=>td('', c===0?'first-col':'' )).join('');
+  for(let r=0;r<bLen;r++){
+    const row = Array.from({length:cols})
+      .map((_,c)=> td(g(r,c), c===0?'first-col':'' )).join('');
     partials += `<tr>${row}</tr>`;
   }
 
-  // Som-rij + dikke lijn erboven (leeg)
+  // Som
   const rowSum = (() => {
-    const row = Array.from({length:cols}).map((_,c)=>td('', c===0?'first-col':'' )).join('');
+    const r=bLen;
+    const row = Array.from({length:cols})
+      .map((_,c)=> td(g(r,c), c===0?'first-col':'' )).join('');
     return `<tr class="thick-before">${row}</tr>`;
   })();
 
@@ -566,27 +611,20 @@ function renderStaticGrid(item, prefill){
     </table>
   `;
 }
-
-/* Render de hele set (voorbeeld op scherm + print-blok) */
 function renderPrintSet(){
-  const prefill = prefillOperands; // zelfde instelling toepassen
-  const makeEx = (item, idx) => `
-    <div class="print-ex">
-      <h3>${idx+1}. ${formatWithComma(item.a.raw, item.a.decs)} × ${formatWithComma(item.b.raw, item.b.decs)} =</h3>
-      ${renderStaticGrid(item, prefill)}
-    </div>
-  `;
+  // Maak statische set (gevuld waar leerling iets invulde)
+  const html = currentSet.map((it,i)=> {
+    const title = `${i+1}. ${formatWithComma(it.a.raw,it.a.decs)} × ${formatWithComma(it.b.raw,it.b.decs)} =`;
+    return `
+      <div class="print-ex">
+        <h3>${title}</h3>
+        ${renderStaticGridFilled(it, it.grid)}
+      </div>
+    `;
+  }).join('');
 
-  // Schermvoorbeeld
-  const preview = document.getElementById('print-preview');
-  if (preview){
-    preview.innerHTML = currentSet.map((it, i)=>makeEx(it, i)).join('');
-  }
-
-  // Print-area (zichtbaar in @media print)
   const printArea = document.getElementById('print-area');
-  const printArea2 = document.getElementById('print-area-standalone'); // fallback (als screen-only container niet aanwezig is)
-  const html = currentSet.map((it, i)=>makeEx(it, i)).join('');
+  const printArea2 = document.getElementById('print-area-standalone');
   if (printArea) printArea.innerHTML = html;
   if (printArea2) printArea2.innerHTML = html;
 }
@@ -599,26 +637,37 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const chkDec=document.getElementById('allowDec');
   const chkFill=document.getElementById('prefillOperands');
   const chkSwap=document.getElementById('allowSwap');
-  const btnSwap=document.getElementById('btn-swap');
 
-  sel.addEventListener('change',()=>{ currentDiff=sel.value; newExercise(); });
-  chkDec.addEventListener('change',()=>{ allowDec=chkDec.checked; newExercise(); });
-  chkFill.addEventListener('change',()=>{ prefillOperands=chkFill.checked; buildGrid(current); });
+  sel.addEventListener('change',()=>{ currentDiff=sel.value; if(setMode){ /* laat huidige set ongemoeid */ } newExercise(); });
+  chkDec.addEventListener('change',()=>{ allowDec=chkDec.checked; if(setMode){ /* set ongemoeid */ } newExercise(); });
+  chkFill.addEventListener('change',()=>{ prefillOperands=chkFill.checked; buildGrid(current); /* herteken */ });
   chkSwap.addEventListener('change',()=>{ allowSwap=chkSwap.checked; updateSwapVisibility(); });
 
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
-  btnSwap.addEventListener('click', swapOperands);
+  document.getElementById('btn-swap').addEventListener('click', swapOperands);
 
-  // Set van 5
-  document.getElementById('btn-newset').addEventListener('click', ()=>{
-    buildSet(5);
-    // Scroll naar voorbeeld
-    const prev = document.getElementById('print-preview');
-    if (prev) prev.scrollIntoView({behavior:'smooth', block:'start'});
+  // Set‑knoppen
+  document.getElementById('btn-newset').addEventListener('click', ()=>{ startNewSet(); });
+  document.getElementById('btn-prev').addEventListener('click', ()=>{
+    if(!setMode) return;
+    saveCurrentIntoSet();
+    if(setIndex>0){ setIndex--; showSetExercise(setIndex); }
   });
+  document.getElementById('btn-next').addEventListener('click', ()=>{
+    if(!setMode) return;
+    saveCurrentIntoSet();
+    if(setIndex<4){ setIndex++; showSetExercise(setIndex); }
+  });
+
+  // Print
   document.getElementById('btn-printset').addEventListener('click', ()=>{
-    if (currentSet.length === 0) buildSet(5);
+    if(setMode){ saveCurrentIntoSet(); }
+    if(currentSet.length===0){
+      // Geen set? Maak er snel één aan met huidige instellingen
+      startNewSet(); saveCurrentIntoSet();
+    }
+    renderPrintSet();
     window.print();
   });
 
