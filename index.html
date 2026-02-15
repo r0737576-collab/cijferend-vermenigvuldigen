@@ -7,36 +7,35 @@
 
 <style>
 :root{
-  --bg:#f7f8fb; --card:#fff; --ink:#111; --muted:#4b5563;
-  --ok:#1ea97c; --bad:#d64545; --warn:#f59e0b;
+  --bg:#f7f8fb; --card:#fff; --ink:#111;
   --line:#e5e7eb; --accent:#2563eb;
 }
 body{
   margin:0; background:var(--bg);
-  font-family:Arial, sans-serif; color:var(--ink);
+  font-family:Arial, sans-serif;
 }
 .wrap{ max-width:1000px; margin:auto; padding:20px; }
 .card{
   background:#fff; padding:16px;
-  border-radius:12px; border:1px solid var(--line);
-  box-shadow:0 8px 24px rgba(0,0,0,.06);
+  border-radius:12px;
+  border:1px solid var(--line);
 }
-
-.bar{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+.bar{ display:flex; gap:10px; flex-wrap:wrap; }
 
 button{
-  padding:10px 14px; border:none;
-  border-radius:8px; color:#fff;
-  background:var(--accent); cursor:pointer;
-  font-weight:600;
+  padding:10px 14px;
+  border:none; border-radius:8px;
+  background:var(--accent);
+  color:#fff; font-weight:600;
+  cursor:pointer;
 }
 
 .task{ font-size:22px; font-weight:700; margin:10px 0; }
 
-.grid{ border-collapse:collapse; margin-top:10px; }
+.grid{ border-collapse:collapse; }
 .grid td{
   border:1px solid var(--line);
-  width:32px; height:36px; text-align:center;
+  width:32px; height:36px;
 }
 .grid input{
   width:100%; height:100%;
@@ -46,7 +45,8 @@ button{
 
 .ok{ background:#e6f7f1; padding:8px; border-radius:8px; }
 .err{ background:#fde8e8; padding:8px; border-radius:8px; }
-.warn{ background:#fff7ed; padding:8px; border-radius:8px; }
+
+.nav{ margin-top:10px; display:flex; gap:10px; }
 </style>
 </head>
 
@@ -58,17 +58,22 @@ button{
 <div class="card">
 
 <div class="bar">
-<button id="btn-new">Nieuwe oefening</button>
-<button id="btn-check">Nakijken</button>
+<select id="difficulty">
+<option value="makkelijk">Makkelijk</option>
+<option value="gemiddeld">Gemiddeld</option>
+<option value="moeilijk" selected>Moeilijk</option>
+</select>
+
+<button id="btn-new">Nieuwe set (5)</button>
+<button onclick="window.print()">Print</button>
 </div>
 
-<div class="task" id="task">—</div>
+<div id="counter"></div>
+<div class="task" id="task"></div>
 
-<div>
 <label>Schatting:</label>
-<input id="est" type="text">
+<input id="est">
 <button id="btn-start">Start</button>
-</div>
 
 <div id="work" style="display:none">
 
@@ -76,10 +81,16 @@ button{
 
 <div style="margin-top:10px">
 <label>Eindantwoord:</label>
-<input id="answer" type="text">
+<input id="answer">
+<button id="btn-check">Nakijken</button>
 </div>
 
 <div id="feedback" style="margin-top:10px"></div>
+
+<div class="nav">
+<button id="prev">Vorige</button>
+<button id="next">Volgende</button>
+</div>
 
 </div>
 </div>
@@ -88,140 +99,183 @@ button{
 <script>
 /* ================= CONFIG ================= */
 
-const DIFFS = {
-  makkelijk:{a:[1,2],b:[1,2],dec:[0,1]},
-  gemiddeld:{a:[2,3],b:[1,3],dec:[0,2]},
-  moeilijk:{a:[3,5],b:[2,3],dec:[0,2]}
+const DIFFS={
+makkelijk:{a:[1,2],b:[1,2],dec:[0,1]},
+gemiddeld:{a:[2,3],b:[1,3],dec:[0,2]},
+moeilijk:{a:[3,5],b:[2,3],dec:[0,2]}
 };
 
 let diff="moeilijk";
-let current=null;
+let set=[];
+let index=0;
 
 /* ================= HELPERS ================= */
 
 function rand(a,b){
-  return Math.floor(Math.random()*(b-a+1))+a;
+return Math.floor(Math.random()*(b-a+1))+a;
 }
 
 function makeNumber(dig,dec){
-  const d=rand(dig[0],dig[1]);
-  const decimals=rand(dec[0],dec[1]);
+const d=rand(dig[0],dig[1]);
+const decimals=rand(dec[0],dec[1]);
 
-  let int=rand(10**(d-1),10**d-1);
+let int=rand(10**(d-1),10**d-1);
 
-  if(decimals===0){
-    return {shown:String(int),raw:String(int),decs:0};
-  }
+if(decimals===0){
+return{shown:String(int),raw:String(int),decs:0};
+}
 
-  let decPart=String(rand(0,10**decimals-1)).padStart(decimals,"0");
+let decPart=String(rand(0,10**decimals-1))
+.padStart(decimals,"0");
 
-  return {
-    shown:int+","+decPart,
-    raw:String(int)+decPart,
-    decs:decimals
-  };
+return{
+shown:int+","+decPart,
+raw:String(int)+decPart,
+decs:decimals
+};
 }
 
 function insertComma(raw,decs){
-  if(decs===0) return raw;
-  if(raw.length<=decs){
-    raw=raw.padStart(decs+1,"0");
-  }
-  return raw.slice(0,-decs)+","+raw.slice(-decs);
+if(decs===0)return raw;
+if(raw.length<=decs){
+raw=raw.padStart(decs+1,"0");
+}
+return raw.slice(0,-decs)+","+raw.slice(-decs);
 }
 
-/* ================= NIEUWE OEFENING ================= */
+/* ================= SET ================= */
 
-function newExercise(){
+function newSet(){
 
-  const cfg=DIFFS[diff];
+diff=document.getElementById("difficulty").value;
 
-  const a=makeNumber(cfg.a,cfg.dec);
-  const b=makeNumber(cfg.b,cfg.dec);
+set=[];
 
-  const product=String(Number(a.raw)*Number(b.raw));
-  const decs=a.decs+b.decs;
+for(let i=0;i<5;i++){
 
-  current={a,b,product,decs};
+const cfg=DIFFS[diff];
 
-  document.getElementById("task").textContent=
-    `${a.shown} × ${b.shown} =`;
+const a=makeNumber(cfg.a,cfg.dec);
+const b=makeNumber(cfg.b,cfg.dec);
 
-  document.getElementById("est").value="";
-  document.getElementById("answer").value="";
-  document.getElementById("feedback").innerHTML="";
-  document.getElementById("work").style.display="none";
+const product=String(Number(a.raw)*Number(b.raw));
+const decs=a.decs+b.decs;
 
-  buildGrid();
+set.push({a,b,product,decs});
 }
 
-/* ================= ROOSTER ================= */
+index=0;
+render();
+}
 
-function buildGrid(){
+/* ================= RENDER ================= */
 
-  const a=current.a.raw.split("");
-  const b=current.b.raw.split("");
+function render(){
 
-  const rows=b.length;
-  const cols=a.length+rows;
+const item=set[index];
 
-  let html="<table class='grid'>";
+document.getElementById("counter")
+.textContent=`Oefening ${index+1} van 5`;
 
-  for(let r=0;r<rows;r++){
-    html+="<tr>";
-    for(let c=0;c<cols;c++){
-      html+=`<td><input></td>`;
-    }
-    html+="</tr>";
-  }
+document.getElementById("task")
+.textContent=`${item.a.shown} × ${item.b.shown} =`;
 
-  html+="</table>";
+document.getElementById("est").value="";
+document.getElementById("answer").value="";
+document.getElementById("feedback").innerHTML="";
+document.getElementById("work").style.display="none";
 
-  document.getElementById("grid").innerHTML=html;
+buildGrid(item);
+}
+
+/* ================= GRID ================= */
+
+function buildGrid(item){
+
+const a=item.a.raw.length;
+const b=item.b.raw.length;
+
+const rows=b;
+const cols=a+b;
+
+let html="<table class='grid'>";
+
+for(let r=0;r<rows;r++){
+html+="<tr>";
+for(let c=0;c<cols;c++){
+html+="<td><input></td>";
+}
+html+="</tr>";
+}
+
+html+="</table>";
+
+document.getElementById("grid").innerHTML=html;
 }
 
 /* ================= START ================= */
 
 function startExercise(){
-  const est=document.getElementById("est").value.trim();
-  if(!est){
-    alert("Vul eerst je schatting in");
-    return;
-  }
-  document.getElementById("work").style.display="block";
+
+if(!document.getElementById("est").value){
+alert("Vul eerst je schatting in");
+return;
 }
 
-/* ================= NAKIJKEN ================= */
+document.getElementById("work").style.display="block";
+}
+
+/* ================= CHECK ================= */
 
 function checkExercise(){
 
-  const user=document.getElementById("answer").value.trim();
+const item=set[index];
 
-  const correct=insertComma(current.product,current.decs);
+const correct=
+insertComma(item.product,item.decs);
 
-  const fb=document.getElementById("feedback");
+const user=
+document.getElementById("answer")
+.value.replace(".",",");
 
-  if(user.replace(".",
-  ",")===correct){
-    fb.innerHTML=`<div class="ok">Correct! ${correct}</div>`;
-  }else{
-    fb.innerHTML=`<div class="err">Fout. Correct antwoord: ${correct}</div>`;
-  }
+if(user===correct){
+document.getElementById("feedback")
+.innerHTML=`<div class="ok">Correct ✔ ${correct}</div>`;
+}else{
+document.getElementById("feedback")
+.innerHTML=`<div class="err">Fout ✖ Correct: ${correct}</div>`;
+}
+}
+
+/* ================= NAV ================= */
+
+function nextEx(){
+if(index<4){index++;render();}
+}
+
+function prevEx(){
+if(index>0){index--;render();}
 }
 
 /* ================= EVENTS ================= */
 
 document.getElementById("btn-new")
-  .addEventListener("click",newExercise);
+.addEventListener("click",newSet);
 
 document.getElementById("btn-start")
-  .addEventListener("click",startExercise);
+.addEventListener("click",startExercise);
 
 document.getElementById("btn-check")
-  .addEventListener("click",checkExercise);
+.addEventListener("click",checkExercise);
+
+document.getElementById("next")
+.addEventListener("click",nextEx);
+
+document.getElementById("prev")
+.addEventListener("click",prevEx);
 
 /* init */
-newExercise();
+newSet();
 </script>
 
 </body>
