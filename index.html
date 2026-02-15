@@ -333,25 +333,24 @@ function swapOperands(){
 function checkAnswer(){
   if (!current) return;
 
-  
-// 1) Eindantwoord (nu met hard stop bij leeg antwoord)
+  const fbEl = document.getElementById('feedback');
+
+  // 0) Verwijder eerdere foutmarkeringen in de grid
+  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
+
+  // 1) Eindantwoord — met hard stop bij leeg antwoord
   const correct = formatWithComma(current.productRaw, current.productDecs);
   const userRaw = document.getElementById('answer').value;
   const user = normalizeStudent(userRaw);
-  const fbEl = document.getElementById('feedback');
 
-  // Verwijder eerdere foutmarkeringen
-  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
-
-  // 🔴 NIEUW: als antwoord leeg is → waarschuwing tonen en STOPPEN
+  // Indien geen cijfer ingevuld: toon waarschuwing en STOP (geen grid-controle)
   if (!user || !/\d/.test(user)) {
     fbEl.innerHTML = `<div class="warnmsg">Vul eerst je eindantwoord in en probeer opnieuw.</div>`;
-    return;  // ⬅️ belangrijk: NIET verdergaan naar tussenstappen
+    return;
   }
 
-  // Vergelijk eindantwoord
+  // Eindantwoord evalueren
   let fbHtml = '';
-  const onlyDigits = s => String(s||'').replace(/[^\d]/g,'');
   if (normalizeStudent(user) === normalizeStudent(correct)){
     fbHtml += `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
   } else if (onlyDigits(user) === onlyDigits(correct)){
@@ -360,13 +359,43 @@ function checkAnswer(){
     fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
   }
 
+  // 1b) NIEUW: controleer of de som-rij (onderste rij) dezelfde cijfers heeft als het antwoordveld (komma negeren)
+  (function compareSumRowToAnswer(){
+    const table = document.getElementById('grid-table');
+    if (!table) return;
+
+    const cols = Number(table.getAttribute('data-cols')); // totaal aantal kolommen
+    // som-rij heeft data-r = bLen (hoogste data-r in tabel)
+    const inputsWithR = table.querySelectorAll('input[data-r]');
+    let maxR = -Infinity;
+    inputsWithR.forEach(inp => {
+      const rv = Number(inp.getAttribute('data-r'));
+      if (!Number.isNaN(rv) && rv > maxR) maxR = rv;
+    });
+    const rSum = maxR;                 // som-rij
+    const sumDigits = [];
+    for (let c = 1; c < cols; c++){    // c=1..cols-1 (kolom 0 is grijs/klad)
+      const inp = table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`);
+      if (inp) sumDigits.push((inp.value || '').replace(/[^\d]/g, ''));
+    }
+    const sumStr = sumDigits.join('').replace(/[^\d]/g,'');
+
+    const ansDigits = onlyDigits(user);
+    if (sumStr && ansDigits && sumStr !== ansDigits){
+      // Toon extra melding; we markeren de som-rij NIET rood per cel hier (dat deden we al hieronder),
+      // dit is een begrijpelijke waarschuwing dat antwoord en som-rij uiteenlopen.
+      fbHtml += `<div class="warnmsg">Let op: de cijfers in de <b>onderste som-rij</b> komen niet overeen met je ingevulde antwoord. Controleer je optelling en/of de kommaplaats.</div>`;
+    }
+  })();
+
   fbEl.innerHTML = fbHtml;
 
-
-  /* 2) Tussenstappen nakijken */
-  // Clear oude bad-markeringen
-  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
-
+  /* 2) Tussenstappen nakijken (zoals eerder):
+        - Core-blokken in elke tussenproduct-rij vergelijken met b_r × A (laatste aLen cijfers)
+        - Shift-vakken rechts moeten 0 zijn
+        - Som-rij: product rechts uitlijnen; links van product niet beoordelen
+        - Links klad/carry (kolom 0) en linkerpads niet beoordelen
+  */
   const table = document.getElementById('grid-table');
   if (table){
     const cols = Number(table.getAttribute('data-cols'));
@@ -389,11 +418,11 @@ function checkAnswer(){
 
     // ---- TUSSENPRODUCTEN ----
     for (let r=0; r<bLen; r++){
-      const k = r;
-      const coreStart = cols - k - aLen;
-      const coreEnd   = cols - k - 1;
+      const k = r;                          // shift rechts = r
+      const coreStart = cols - k - aLen;    // eerste core-kolom
+      const coreEnd   = cols - k - 1;       // laatste core-kolom
 
-      const bDigit = bDigits[bLen-1-r];
+      const bDigit = bDigits[bLen-1-r];     // b_r: van rechts naar links
       let carry = 0;
       const coreDigits = new Array(aLen);
       for (let j=aLen-1; j>=0; j--){
@@ -413,7 +442,7 @@ function checkAnswer(){
         const got  = valAt(r,c);
         if (got !== want) markBad(r,c);
       }
-      // links van core niet beoordelen (klad/carry/pads)
+      // links (kolommen < coreStart) niet beoordelen (klad/carry/pads)
     }
 
     // ---- SOM-RIJ ----
@@ -421,17 +450,16 @@ function checkAnswer(){
     const prod = String(current.productRaw); // digits only
     const L = prod.length;
     for (let c=1; c<cols; c++){
-      const offsetFromRight = (cols-1) - c;
+      const offsetFromRight = (cols-1) - c;  // 0 bij laatste kolom
       const idx = L-1 - offsetFromRight;
       if (idx >= 0){
         const want = prod[idx];
         const got  = valAt(rSum,c);
         if (got !== want) markBad(rSum,c);
       }
+      // kolommen links van het product (idx < 0) niet beoordelen
     }
   }
-
-  fbEl.innerHTML = fbHtml;
 }
 
 /* ===== Events ===== */
