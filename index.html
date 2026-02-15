@@ -64,7 +64,7 @@ button{
 <option value="moeilijk" selected>Moeilijk</option>
 </select>
 
-<button id="btn-new">Nieuwe set (5)</button>
+<button id="btn-new" onclick="newSet()">Nieuwe set (5)</button>
 <button onclick="window.print()">Print</button>
 </div>
 
@@ -145,9 +145,11 @@ return raw.slice(0,-decs)+","+raw.slice(-decs);
 
 /* ================= SET ================= */
 
-function newSet(){
+window.newSet = function () {
+  console.log("Nieuwe set gestart");
+};
 
-diff=document.getElementById("difficulty").value;
+document.getElementById("btn-new").addEventListener("click", newSet);
 
 set=[];
 
