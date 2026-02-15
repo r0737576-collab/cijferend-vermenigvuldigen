@@ -106,38 +106,33 @@ function normalizeStudent(s){
 let current = null; // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
 
 function newExercise(){
-  // mix natuurlijke/decimale factoren (0–2 decimalen)
-  const aDecs = randInt(0,2) <= 1 ? randInt(0,2) : 0;
-  const bDecs = randInt(0,2);
-  const aIntDigits = randInt(1,3);
-  const bIntDigits = randInt(1,3);
+  // Beide factoren in [10, 1000] met 0..3 decimalen; 1000 heeft geen decimalen
+  function makeBoundedNumber(){
+    const intPart = randInt(10, 1000);
+    let decs = randInt(0, 3);
+    if (intPart === 1000) decs = 0; // 1000,xxx > 1000 → niet toegestaan
 
-  const aIntMin = aIntDigits===1 ? 0 : 10**(aIntDigits-1);
-  const aIntMax = 10**aIntDigits - 1;
-  const bIntMin = bIntDigits===1 ? 0 : 10**(bIntDigits-1);
-  const bIntMax = 10**bIntDigits - 1;
+    const decPart = decs > 0
+      ? String(randInt(0, Math.pow(10, decs) - 1)).padStart(decs, '0')
+      : '';
 
-  const aInt = randInt(aIntMin, aIntMax);
-  const bInt = randInt(bIntMin, bIntMax);
+    const raw = String(intPart) + decPart; // digits only
+    return { raw, decs, shown: formatWithComma(raw, decs) };
+  }
 
-  const aDecPart = aDecs>0 ? String(randInt(0,10**aDecs-1)).padStart(aDecs,'0') : '';
-  const bDecPart = bDecs>0 ? String(randInt(0,10**bDecs-1)).padStart(bDecs,'0') : '';
+  const a = makeBoundedNumber();
+  const b = makeBoundedNumber();
 
-  const aRaw = String(aInt) + aDecPart;  // digits only
-  const bRaw = String(bInt) + bDecPart;  // digits only
-
-  const productRaw  = String(Number(aRaw) * Number(bRaw));
-  const productDecs = aDecs + bDecs;
+  const productRaw  = String(Number(a.raw) * Number(b.raw));
+  const productDecs = a.decs + b.decs;
 
   current = {
-    a:{ raw:aRaw, decs:aDecs },
-    b:{ raw:bRaw, decs:bDecs },
+    a:{ raw:a.raw, decs:a.decs },
+    b:{ raw:b.raw, decs:b.decs },
     productRaw, productDecs
   };
 
-  const aShown = formatWithComma(aRaw, aDecs);
-  const bShown = formatWithComma(bRaw, bDecs);
-  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
+  document.getElementById('task').textContent = `${a.shown} × ${b.shown} =`;
 
   document.getElementById('answer').value = '';
   document.getElementById('feedback').innerHTML = '';
@@ -146,7 +141,7 @@ function newExercise(){
 }
 
 /* ===== Rooster =====
-   Kolommen: 1 (linkse klad/carry, altijd) + aLen + (shift rechts) --> cols = 1 + aLen + bLen
+   Kolommen: 1 (linkse klad/carry) + aLen + (shift rechts) --> cols = 1 + aLen + bLen
    Rijen:
    1) factor A (readonly, rechts uitgelijnd)
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
@@ -163,13 +158,10 @@ function buildGrid(item){
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  // totaal kolommen: 1 linkse klad/carry + aLen hoofd + bLen shift
   const cols = 1 + aLen + bLen;
 
-  // helper voor een cel
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
-  // Rij 1: factor A (rechts uitgelijnd; linkse grijze kolom readonly)
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -178,7 +170,6 @@ function buildGrid(item){
     return `<tr>${first}${left}${body}</tr>`;
   })();
 
-  // Rij 2: factor B (rechts uitgelijnd; linkse grijze kolom readonly) + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -187,7 +178,6 @@ function buildGrid(item){
     return `<tr class="thick-after">${first}${left}${body}</tr>`;
   })();
 
-  // bLen rijen tussenproducten: linkse grijze kolom + invulbare pads + core + shift
   let partials = '';
   for (let k = 0; k < bLen; k++){
     const leftPadsCount = (cols - 1) - (aLen + k);
@@ -205,7 +195,6 @@ function buildGrid(item){
     partials += `<tr>${first}${leftPads}${core}${shift}</tr>`;
   }
 
-  // Som-rij: linkse grijze kolom + rest invulbaar, dikke lijn erboven
   const rowSum = (() => {
     const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
     const rest  = Array.from({length:cols-1})
@@ -223,7 +212,6 @@ function buildGrid(item){
 
   document.getElementById("grid").innerHTML = html;
 
-  // Korte nota
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 }
