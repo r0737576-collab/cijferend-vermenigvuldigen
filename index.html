@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (moeilijkheid + linkse kolom)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + toggle decimaal)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -16,16 +16,25 @@
 
   h1{ margin:0 0 8px; font-size:22px; }
   .lead{ margin:0 0 12px; color:var(--muted); }
+
   .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-  select{ padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
+  .bar select, .bar input[type="checkbox"]{ transform: translateY(1px); }
+  .bar label{ color:#0f172a; }
+
   button{
     padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
   }
   input[type="text"]{
     padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
   }
-  .task{ font-size:24px; font-weight:700; margin:12px 0; }
-  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
+
+  /* Opgave + inline antwoord */
+  .task-row{
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    margin:10px 0 6px;
+  }
+  .task-label{ font-size:24px; font-weight:700; }
+  .task-ans{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
 
   /* --- Rooster --- */
   .grid{ border-collapse:collapse; margin-top:8px; }
@@ -33,7 +42,6 @@
     border:1px solid var(--line);
     width:32px; height:36px; text-align:center; vertical-align:middle;
   }
-  /* inputs zonder eigen rand -> tabel vormt de hokjes */
   .grid input{
     width:100%; height:100%;
     border:none; outline:none;
@@ -46,7 +54,7 @@
     color:#0f172a;
   }
 
-  /* dikke lijnen op rij-niveau (geen extra scheidingsrij) */
+  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij) */
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
 
@@ -62,25 +70,27 @@
   <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij.</p>
 
   <div class="card">
+    <!-- Moeilijkheidskeuze + toggle decimaal -->
     <div class="bar">
       <label for="difficulty"><b>Moeilijkheid:</b></label>
       <select id="difficulty">
         <option value="makkelijk">Makkelijk (10–100, max 1 dec)</option>
         <option value="gemiddeld">Gemiddeld (10–1000, max 2 dec)</option>
         <option value="moeilijk" selected>Moeilijk (10–1000, max 3 dec)</option>
-        <option value="natuurlijk">Enkel natuurlijke getallen (10–1000)</option>
-        <option value="compact">Compact (10–100, max 3 dec)</option>
       </select>
+
+      <label><input type="checkbox" id="allowDec" checked> Decimale getallen toestaan</label>
 
       <button id="btn-new">Nieuwe oefening</button>
     </div>
 
-    <div class="task" id="task">—</div>
-
-    <div class="controls">
-      <label for="answer"><b>Eindantwoord:</b></label>
-      <input id="answer" type="text" placeholder="bv. 123,45 of 123.45">
-      <button id="btn-check">Nakijken</button>
+    <!-- Opgave + inline antwoord -->
+    <div class="task-row">
+      <div class="task-label" id="task">—</div>
+      <div class="task-ans">
+        <input id="answer" type="text" placeholder="bv. 123,45 of 123.45">
+        <button id="btn-check">Nakijken</button>
+      </div>
     </div>
 
     <div id="grid"></div>
@@ -116,18 +126,17 @@ function normalizeStudent(s){
 const DIFF = {
   makkelijk: { min:10,  max:100,  decMax:1 },
   gemiddeld: { min:10,  max:1000, decMax:2 },
-  moeilijk:  { min:10,  max:1000, decMax:3 },
-  natuurlijk:{ min:10,  max:1000, decMax:0 },
-  compact:   { min:10,  max:100,  decMax:3 }
+  moeilijk:  { min:10,  max:1000, decMax:3 }
 };
 
-let current = null;          // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
-let currentDiff = 'moeilijk';
+let current = null;           // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
+let currentDiff = 'moeilijk'; // default
+let allowDec = true;          // toggle
 
-/* Maak factor binnen grenzen + decimalenregel (1000 => geen decimalen) */
+/* Maak factor binnen grenzen + decimaalregel (1000 => geen decimalen) */
 function makeNumberBounded(cfg){
   const intPart = randInt(cfg.min, cfg.max);
-  let decs = randInt(0, cfg.decMax);
+  let decs = allowDec ? randInt(0, cfg.decMax) : 0;  // toggle bepaalt of decimalen mogen
   if (intPart === cfg.max) decs = 0; // 1000,xxx > 1000 → niet toegestaan
 
   const decPart = decs > 0
@@ -135,7 +144,7 @@ function makeNumberBounded(cfg){
     : '';
 
   const raw = String(intPart) + decPart;       // digits only
-  const shown = formatWithComma(raw, decs);    // met komma voor display
+  const shown = formatWithComma(raw, decs);    // display met komma
   return { raw, decs, shown };
 }
 
@@ -200,7 +209,7 @@ function buildGrid(item){
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
     const left  = Array.from({length:blanks}).map(()=>td('')).join('');
     const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr class="thick-after">${first}{left}${body}</tr>`.replace('{left}', left);
+    return `<tr class="thick-after">${first}${left}${body}</tr>`;
   })();
 
   // bLen rijen tussenproducten: linkse grijze kolom + invulbare pads + core + shift
@@ -239,6 +248,7 @@ function buildGrid(item){
 
   document.getElementById("grid").innerHTML = html;
 
+  // Korte nota
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 }
@@ -266,15 +276,17 @@ function checkAnswer(){
 
 /* ===== Events ===== */
 window.addEventListener('DOMContentLoaded', ()=>{
-  // Moeilijkheid
+  // Moeilijkheid en toggle decimaal
   const sel = document.getElementById('difficulty');
-  sel.addEventListener('change', () => {
-    currentDiff = sel.value;
-    newExercise();
-  });
+  const chk = document.getElementById('allowDec');
+
+  sel.addEventListener('change', () => { currentDiff = sel.value; newExercise(); });
+  chk.addEventListener('change', () => { allowDec = chk.checked; newExercise(); });
 
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
+
+  // Start
   newExercise();
 });
 </script>
