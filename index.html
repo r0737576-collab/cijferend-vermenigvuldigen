@@ -343,7 +343,10 @@ function swapOperands(){
 /* ===== Nakijken =====
    - Early stop bij leeg antwoord (niets rood/knipperen).
    - Eindantwoord evaluatie.
-   - EXTRA: Som-rij vs antwoord (komma negeren) + knipperen bij verschil — alleen als het eindantwoord NIET exact correct is.
+   - Som-rij vs antwoord (komma negeren):
+       • Als EINDANTWOORD EXACT JUIST → geen melding/knipper (logisch: alles is ok).
+       • Als NIET EXACT → als som-rij ≠ antwoord → melding + knipper en STOP (geen per-cel checks).
+       • Als NIET EXACT maar som-rij == antwoord → per-cel checks uitvoeren.
    - Tussenstappen: core / shift / som-rij per cel.
 */
 function checkAnswer(){
@@ -374,48 +377,56 @@ function checkAnswer(){
   let fbHtml = '';
   if (isExact){
     fbHtml += `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+    fbEl.innerHTML = fbHtml;
+    // Bij exact correct: we voeren alsnog per-cel checks uit (alles zou goed moeten zijn)
+    runPerCellChecks();
+    return;
   } else if (isDigitsOnly){
     fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
   } else {
     fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
   }
 
-  // 1b) Som-rij vs antwoord (komma genegeerd) — ALLEEN als niet exact correct, anders geen extra melding/knipper
-  if (!isExact){
-    const table = document.getElementById('grid-table');
-    if (table){
-      const cols = Number(table.getAttribute('data-cols'));
-      // som-rij = hoogste data-r
-      const inputs = table.querySelectorAll('input[data-r]');
-      let maxR = -Infinity;
-      inputs.forEach(inp => {
-        const rv = Number(inp.getAttribute('data-r'));
-        if (!Number.isNaN(rv) && rv > maxR) maxR = rv;
-      });
-      const rSum = maxR;
+  // 1b) Som-rij vs antwoord (komma genegeerd) — alleen relevant als niet exact correct
+  const table = document.getElementById('grid-table');
+  if (table){
+    const cols = Number(table.getAttribute('data-cols'));
+    // som-rij = hoogste data-r
+    const inputs = table.querySelectorAll('input[data-r]');
+    let maxR = -Infinity;
+    inputs.forEach(inp => {
+      const rv = Number(inp.getAttribute('data-r'));
+      if (!Number.isNaN(rv) && rv > maxR) maxR = rv;
+    });
+    const rSum = maxR;
 
-      const sumDigits = [];
-      for (let c = 1; c < cols; c++){
-        const inp = table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`);
-        if (inp) sumDigits.push((inp.value || '').replace(/[^\d]/g, ''));
-      }
-      const sumStr = sumDigits.join('').replace(/[^\d]/g,'');
+    const sumDigitsArr = [];
+    for (let c = 1; c < cols; c++){
+      const inp = table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`);
+      if (inp) sumDigitsArr.push((inp.value || '').replace(/[^\d]/g, ''));
+    }
+    const sumStr = sumDigitsArr.join('').replace(/[^\d]/g,'');
 
-      if (sumStr && userDigits && sumStr !== userDigits){
-        fbHtml += `<div class="warnmsg">Let op: de cijfers in de <b>onderste som-rij</b> komen niet overeen met je ingevulde antwoord. Controleer je optelling en/of de kommaplaats.</div>`;
-        // knipper de hele som-rij
-        const anyCell = table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
-        const sumTr = anyCell ? anyCell.closest('tr') : null;
-        if (sumTr) sumTr.classList.add('sum-blink');
-      }
+    if (sumStr && userDigits && sumStr !== userDigits){
+      fbHtml += `<div class="warnmsg">Let op: de cijfers in de <b>onderste som-rij</b> komen niet overeen met je ingevulde antwoord.</div>`;
+      fbEl.innerHTML = fbHtml;
+      // knipper de hele som-rij en STOP → geen per-cel checks tot de som-rij matcht met het antwoord
+      const anyCell = table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
+      const sumTr = anyCell ? anyCell.closest('tr') : null;
+      if (sumTr) sumTr.classList.add('sum-blink');
+      return;
     }
   }
 
+  // Als we hier zijn: niet exact correct, maar SOM-rij == antwoord → nu per-cel checks draaien
   fbEl.innerHTML = fbHtml;
+  runPerCellChecks();
 
-  // 2) Tussenstappen per cel
-  const table = document.getElementById('grid-table');
-  if (table){
+  /* ===== Hulpfunctie: per-cel checks ===== */
+  function runPerCellChecks(){
+    const table = document.getElementById('grid-table');
+    if (!table) return;
+
     const cols = Number(table.getAttribute('data-cols'));
     const aStr = table.getAttribute('data-a'); // digits only
     const bStr = table.getAttribute('data-b');
