@@ -293,6 +293,19 @@ function buildGrid(item){
   const gridDiv = document.getElementById("grid");
   gridDiv.innerHTML = html;
 
+  // ...binnen buildGrid(...) nadat de tabel is gezet:
+  const gridDiv = document.getElementById("grid");
+  gridDiv.innerHTML = html;
+
+  // ▶ Reset de hintbox zodat er niets “blijft staan” na niveau/decimalen wissel
+  const hintsBox = document.getElementById('live-hints');
+  if (hintsBox) { hintsBox.style.display = 'none'; hintsBox.innerHTML = ''; }
+
+  // (hieronder blijven je pijltjestoetsen, event listeners, enz.)
+  // Tipcontrole alleen op input; NIET forceren bij init,
+  // of als je ‘m hier toch wil aanroepen blijft hij nu stil als de vakjes leeg zijn:
+  // validateShiftZerosOnly();
+  
   // Nota
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
@@ -632,13 +645,17 @@ function _placeLabel(k){
   return `×10^${k}`;
 }
 
+/* Hulptitel voor ×10^k */
+function _placeLabel(k){
+  if (k === 1) return 'tiental';
+  if (k === 2) return 'honderdtal';
+  if (k === 3) return 'duizendtal';
+  return `×10^${k}`;
+}
+
 /**
- * Toon tip wanneer in de rechter shift-vakken (kolommen cols-k..cols-1)
- * een waarde ≠ '0' wordt ingevuld. Markeer die cellen zacht oranje.
- * – Verwacht dat de tabel #grid-table bestaat met:
- *   data-cols = totaal kolommen
- *   data-b    = string met de tweede factor (digits only) → bLen = lengte
- * – Inputs hebben data-r (0..bLen-1 voor tussenproducten; som= bLen) en data-c (0..cols-1).
+ * Live-hint: toon alleen wanneer in de rechter shift-vakken iets ≠ '0' staat.
+ * Lege vakjes (nog niet ingevuld) geven géén hint.
  */
 function validateShiftZerosOnly() {
   const table = document.getElementById('grid-table');
@@ -649,39 +666,41 @@ function validateShiftZerosOnly() {
   const bStr = table.getAttribute('data-b') || '';
   const bLen = bStr.length;
 
-  // Oude hint-markeringen opruimen
+  // Reset oude markeringen
   table.querySelectorAll('td').forEach(td => td.classList.remove('wrong-shift'));
 
   const messages = [];
 
-  // Loop over alle tussenproduct-rijen r = 0..bLen-1 (r=0 is onderste rij)
+  // r = 0..bLen-1 → tussenproducten; k=r → aantal shifts rechts
   for (let r = 0; r < bLen; r++) {
-    const k = r; // aantal shifts rechts
-    if (k <= 0) continue; // geen shift-positie → niets te controleren
+    const k = r;
+    if (k <= 0) continue; // bij k=0 zijn er geen shift-vakken
 
-    let anyWrongHere = false;
+    let anyWrong = false;
 
-    // Rechter k kolommen: c = cols-k .. cols-1
+    // Rechter k kolommen: c = cols - k .. cols - 1
     for (let c = cols - k; c < cols; c++) {
       const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
       if (!inp) continue;
       const val = (inp.value || '').trim();
 
-      // Tip alleen als er expliciet iets ≠ '0' staat
+      // Alleen tip tonen als er iets ANDERS dan '0' staat (niet voor leeg)
       if (val !== '' && val !== '0') {
-        anyWrongHere = true;
+        anyWrong = true;
         const td = inp.parentElement;
-        if (td) td.classList.add('wrong-shift');
+        if (td) td.classList.add('wrong-shift'); // licht oranje markering
       }
     }
 
-    if (anyWrongHere) {
+    if (anyWrong) {
       messages.push(
-        `Rij ${r + 1}: rechts horen ${k} nul(len) te staan, <b>omdat je vermenigvuldigt met een ${_placeLabel(k)}</b>.`
+        `Rij ${r + 1}: rechts horen ${k} nul(len) te staan, ` +
+        `<b>omdat je vermenigvuldigt met een ${_placeLabel(k)}</b>.`
       );
     }
   }
 
+  // Hintbox tonen of verbergen
   if (messages.length) {
     hintsBox.style.display = 'block';
     hintsBox.innerHTML = '🟠 <b>Tip:</b> ' + messages.join(' ');
@@ -691,22 +710,6 @@ function validateShiftZerosOnly() {
   }
 }
 
-// ✔ Live tijdens typen updaten
-(function wireShiftHints(){
-  const grid = document.getElementById('grid');
-  if (!grid) return;
-
-  // 1) Her-evalueer bij elke wijziging in het rooster
-  grid.addEventListener('input', (e) => {
-    if (e.target && e.target.tagName === 'INPUT') validateShiftZerosOnly();
-  });
-
-  // 2) Na (opnieuw) opbouwen van het rooster meteen eerste evaluatie
-  //    → Roep deze ook aan in jouw buildGrid() zodra je de tabel hebt gezet,
-  //      of hieronder een kleine vertraging om de eerste render mee te pakken.
-  setTimeout(validateShiftZerosOnly, 0);
-})();
-  
 </script>
 </body>
 </html>
