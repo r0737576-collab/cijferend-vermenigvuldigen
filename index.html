@@ -1,683 +1,228 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Oefenen: Vermenigvuldigen</title>
-  
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vermenigvuldigen — oefenen met cijferen</title>
+
 <style>
-  :root{
-    --bg:#f7f8fb; --card:#ffffff; --ink:#111; --muted:#4b5563;
-    --ok:#1ea97c; --bad:#d64545; --warn:#f59e0b; --line:#e5e7eb;
-    --accent:#2563eb; --accent-dark:#1e40af;
-  }
-  body{ margin:0; background:var(--bg); color:var(--ink); font-family:Arial, sans-serif; }
-  .wrap{ max-width:980px; margin:0 auto; padding:20px; }
-  h1{ margin:0 0 6px; font-size:22px; }
-  p.lead{ margin:0 0 12px; color:var(--muted); }
-
-  .card{ background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; box-shadow:0 8px 24px rgba(0,0,0,.06); }
-
-  /* Bovenbalk met moeilijkheid + knoppen */
-  .bar{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:8px; }
-  .bar .label{ font-weight:700; }
-  /* custom dropdown (details/summary) */
-  details.diff{ position:relative; }
-  details.diff summary{
-    list-style:none; cursor:pointer; user-select:none;
-    padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:#fff; min-width:160px;
-    display:inline-flex; align-items:center; gap:8px;
-  }
-  details.diff summary::-webkit-details-marker{ display:none; }
-  details.diff[open] summary{ border-bottom-left-radius:0; border-bottom-right-radius:0; }
-  .diff-menu{
-    position:absolute; top:100%; left:0; z-index:20; min-width:280px; background:#fff;
-    border:1px solid var(--line); border-top:none; border-bottom-left-radius:8px; border-bottom-right-radius:8px;
-    box-shadow:0 12px 28px rgba(0,0,0,.1); padding:6px;
-  }
-  .diff-btn{
-    display:flex; flex-direction:column; gap:2px; width:100%; text-align:left;
-    padding:8px 10px; border:none; background:#fff; cursor:pointer; border-radius:6px;
-  }
-  .diff-btn:hover{ background:#f3f4f6; }
-  .diff-btn b{ font-size:14px; color:#0f172a; }
-  .diff-btn span{ font-size:12px; color:#475569; }
-
-  button{
-    padding:10px 14px; font-size:15px; font-weight:600; border:none; border-radius:8px; color:#fff; cursor:pointer;
-  }
-  .btn-main{ background:var(--accent); }
-  .btn-main:hover{ background:var(--accent-dark); }
-  .btn-sec{ background:#374151; }
-  .btn-ghost{ background:#0f172a; }
-  button:disabled{ opacity:.6; cursor:not-allowed; }
-
-  /* Opgave/rooster */
-  .exercise-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0 6px; }
-  .ex-num{ font-weight:700; }
-  .toggles{ display:flex; gap:12px; flex-wrap:wrap; font-size:14px; color:#0f172a; }
-  .toggles label{ display:inline-flex; gap:6px; align-items:center; }
-
-  .task{ font-size:20px; font-weight:700; letter-spacing:.2px; }
-  .task .times{ padding:0 6px; }
-  .est{ margin:10px 0; display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  .est input[type="text"]{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; width:180px; font-size:16px; }
-  .est .info{ font-size:13px; color:var(--muted); }
-
-  .grid-wrap{ margin:10px 0; }
-  .grid-help{ font-size:13px; color:#334155; margin-bottom:6px; }
-  .grid{ border-collapse:collapse; }
-  .grid td, .grid th{ border:1px solid var(--line); text-align:center; padding:6px; }
-  .digits-top{ font-weight:700; background:#f8fafc; }
-  .row-label{ background:#f8fafc; font-weight:700; width:40px; }
-  .cell input{
-    width:28px; height:32px; text-align:center; font-size:16px; border:1px solid #cbd5e1; border-radius:6px; outline:none;
-  }
-  .cell input:disabled{ background:#f3f4f6; color:#475569; }
-  .ans{ display:flex; align-items:center; gap:10px; margin-top:10px; }
-  .ans input[type="text"]{ padding:8px 10px; border:1px solid var(--line); border-radius:8px; width:260px; font-size:18px; }
-  .fb{ margin-top:10px; }
-  .ok{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; }
-  .err{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; }
-  .warn{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; }
-
-  .nav{ display:flex; justify-content:space-between; margin-top:12px; gap:10px; }
-
-  .legend{ display:flex; gap:10px; flex-wrap:wrap; margin-top:12px; font-size:13px; color:#475569; }
-  .legend .pill{ padding:4px 8px; border-radius:999px; border:1px solid var(--line); background:#f3f4f6; }
-
-  /* PRINT */
-  @media print{
-    body *{ visibility:hidden !important; }
-    #print-area, #print-area *{ visibility:visible !important; }
-    #print-area{ position:absolute; top:0; left:0; width:100%; }
-    .bar, .btns, .legend{ display:none !important; }
-  }
-/* --- FIX: zorg dat het moeilijkheidsmenu altijd bovenaan ligt en klikbaar is --- */
-details.diff { 
-  position: relative; 
-  z-index: 1000;       /* boven andere lagen */
+:root{
+  --bg:#f7f8fb; --card:#fff; --ink:#111; --muted:#4b5563;
+  --ok:#1ea97c; --bad:#d64545; --warn:#f59e0b;
+  --line:#e5e7eb; --accent:#2563eb;
 }
-.diff-menu {
-  position: absolute; 
-  top: 100%; 
-  left: 0; 
-  z-index: 2000;       /* nog hoger dan andere overlays */
-}  
+body{
+  margin:0; background:var(--bg);
+  font-family:Arial, sans-serif; color:var(--ink);
+}
+.wrap{ max-width:1000px; margin:auto; padding:20px; }
+.card{
+  background:#fff; padding:16px;
+  border-radius:12px; border:1px solid var(--line);
+  box-shadow:0 8px 24px rgba(0,0,0,.06);
+}
+
+.bar{ display:flex; gap:10px; flex-wrap:wrap; margin-bottom:10px; }
+
+button{
+  padding:10px 14px; border:none;
+  border-radius:8px; color:#fff;
+  background:var(--accent); cursor:pointer;
+  font-weight:600;
+}
+
+.task{ font-size:22px; font-weight:700; margin:10px 0; }
+
+.grid{ border-collapse:collapse; margin-top:10px; }
+.grid td{
+  border:1px solid var(--line);
+  width:32px; height:36px; text-align:center;
+}
+.grid input{
+  width:100%; height:100%;
+  border:none; text-align:center;
+  font-size:16px;
+}
+
+.ok{ background:#e6f7f1; padding:8px; border-radius:8px; }
+.err{ background:#fde8e8; padding:8px; border-radius:8px; }
+.warn{ background:#fff7ed; padding:8px; border-radius:8px; }
 </style>
 </head>
-</body>
-  <!-- AUTO-BIND FIX: plak dit net voor </body> -->
-<script>
-  window.addEventListener("DOMContentLoaded", function(){
-    try {
-      // Moeilijkheidsopties klikbaar maken (custom dropdown)
-      document.querySelectorAll('.diff-btn').forEach(function(btn){
-        btn.addEventListener('click', function(){
-          var diff = btn.dataset.diff;
-          // Pas label aan in de samenvatting (en sluit menu)
-          var summary = document.getElementById('diff-summary');
-          var detailsEl = document.getElementById('diff');
-          var labelEl = btn.querySelector('b');
-          if (summary && labelEl) summary.textContent = labelEl.textContent;
-          if (detailsEl) detailsEl.open = false;
 
-          // Diff toepassen op je state (als die bestaat)
-          try {
-            if (window.CONFIGS && Object.prototype.hasOwnProperty.call(window.CONFIGS, diff)) {
-              window.currentDiff = diff;  // gebruik dezelfde variabele als in je code
-            }
-          } catch(_) {}
-
-          // Nieuwe oefening starten als die functie bestaat
-          if (typeof window.newExercise === 'function') {
-            window.newExercise();
-          }
-        });
-      });
-
-      // Hoofdknoppen binden (alleen als ze bestaan)
-      var btnNew   = document.getElementById('btn-new');
-      var btnCheck = document.getElementById('btn-check');
-      var btnPdf   = document.getElementById('btn-pdf');
-
-      if (btnNew)   btnNew.addEventListener('click', function(){ if (typeof window.newExercise === 'function') window.newExercise(); });
-      if (btnCheck) btnCheck.addEventListener('click', function(){ if (typeof window.grade === 'function') window.grade(); });
-      if (btnPdf)   btnPdf.addEventListener('click', function(){ window.print(); });
-
-      // Eénmalig opstarten (alleen als de functie bestaat)
-      if (typeof window.newExercise === 'function') {
-        window.newExercise();
-      }
-    } catch(e){
-      console.log("Init-fout:", e);
-    }
-  });
-})();
-</script>
-<!-- PATCH: alias + definitieve event-binding voor cijferen-tool (vervang je bestaande patch door dit blok) -->
-<script>
-(function(){
-  // Log JS-fouten zichtbaar in de console (F12 → Console)
-  window.onerror = function (message, source, lineno, colno) {
-    console.log("JS-fout:", message, "@", source, lineno + ":" + colno);
-  };
-
-  function safe(fn, label){
-    try { return fn(); } catch(e){ console.log(label || 'Fout', e); alert((label||'Fout') + ': ' + e.message); }
-  }
-
-  window.addEventListener('DOMContentLoaded', () => {
-
-    // 1) Aliassen: oude namen doorverwijzen naar jouw functies
-    try {
-      if (typeof window.newSet === 'function')      window.newExercise = window.newSet;      // alias
-      if (typeof window.checkExercise === 'function') window.grade       = window.checkExercise; // alias
-    } catch(_) {}
-
-    // 2) Moeilijkheidsmenu (custom dropdown)
-    document.querySelectorAll('.diff-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const diff = btn.dataset.diff;
-        if (!diff) return;
-
-        // Summary‑label bijwerken en menu sluiten
-        const summary  = document.getElementById('diff-summary');
-        const details  = document.getElementById('diff');
-        const labelEl  = btn.querySelector('b');
-        if (summary && labelEl) summary.textContent = labelEl.textContent;
-        if (details) details.open = false;
-
-        // Staat aanpassen (zorg dat currentDiff niet const is!)
-        try { window.currentDiff = diff; } catch(e){ console.log('Kon currentDiff niet zetten', e); }
-
-        // Nieuwe set starten
-        if (typeof window.newSet === 'function') {
-          safe(() => window.newSet(), 'Fout bij newSet() na niveau‑keuze');
-        } else {
-          alert('newSet() ontbreekt — controleer of je hoofdscript geladen is.');
-        }
-      });
-    });
-
-    // 3) Hoofdknoppen binden
-    const $ = id => document.getElementById(id);
-    const btnNew   = $('btn-new');
-    const btnStart = $('btn-start');
-    const btnCheck = $('btn-check');
-    const btnNext  = $('btn-next');
-    const btnPrev  = $('btn-prev');
-    const btnPrint = $('btn-print');
-
-    if (btnNew)   btnNew.addEventListener('click',   () => safe(() => window.newSet(),        'newSet()'));
-    if (btnStart) btnStart.addEventListener('click', () => safe(() => window.startExercise(), 'startExercise()'));
-    if (btnCheck) btnCheck.addEventListener('click', () => safe(() => window.checkExercise(), 'checkExercise()'));
-    if (btnNext)  btnNext.addEventListener('click',  () => safe(() => window.nextExercise(),  'nextExercise()'));
-    if (btnPrev)  btnPrev.addEventListener('click',  () => safe(() => window.prevExercise(),  'prevExercise()'));
-    if (btnPrint) btnPrint.addEventListener('click', () => window.print());
-
-    // 4) Toggles (rooster tonen / prefill) direct hertekenen
-    const showHelp = $('show-help');
-    const prefill  = $('prefill');
-    const rerender = () => (typeof window.renderExercise === 'function') && window.renderExercise();
-    if (showHelp) showHelp.addEventListener('change', rerender);
-    if (prefill)  prefill.addEventListener('change', rerender);
-
-    // 5) Startlabel + eerste set (initieel niveau)
-    const summary = document.getElementById('diff-summary');
-    if (summary && !summary.textContent.trim()) summary.textContent = 'Moeilijk';
-
-    if (typeof window.newSet === 'function') {
-      safe(() => window.newSet(), 'Fout bij initiale newSet()');
-    } else {
-      alert('newSet() ontbreekt — controleer of je hoofdscript boven deze patch staat.');
-    }
-  });
-})();
-</script>
-<script>
-window.addEventListener('DOMContentLoaded', () => {
-  // 1) Aliassen zodat oudere binds (die newExercise/grade gebruiken) niet crashen
-  try {
-    if (typeof window.newSet === 'function') {
-      window.newExercise = window.newSet;       // alias
-    }
-    if (typeof window.checkExercise === 'function') {
-      window.grade = window.checkExercise;      // alias
-    }
-  } catch(_) {}
-
-  // 2) Moeilijkheidsmenu (custom dropdown) klikbaar maken
-  document.querySelectorAll('.diff-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const diff = btn.dataset.diff;
-      if (diff) {
-        // pas label aan in summary
-        const summary = document.getElementById('diff-summary');
-        const titleEl = btn.querySelector('b');
-        if (summary && titleEl) summary.textContent = titleEl.textContent;
-
-        // stel diff in en sluit menu
-        const detailsEl = document.getElementById('diff');
-        if (detailsEl) detailsEl.open = false;
-
-        // zet state en bouw nieuwe set
-        try { window.currentDiff = diff; } catch(_) {}
-        if (typeof window.newSet === 'function') window.newSet();
-      }
-    });
-  });
-
-  // 3) Hoofdknoppen binden
-  const byId = id => document.getElementById(id);
-  const btnNew   = byId('btn-new');
-  const btnStart = byId('btn-start');
-  const btnCheck = byId('btn-check');
-  const btnNext  = byId('btn-next');
-  const btnPrev  = byId('btn-prev');
-  const btnPrint = byId('btn-print');
-
-  if (btnNew)   btnNew.addEventListener('click', () => window.newSet && window.newSet());
-  if (btnStart) btnStart.addEventListener('click', () => window.startExercise && window.startExercise());
-  if (btnCheck) btnCheck.addEventListener('click', () => window.checkExercise && window.checkExercise());
-  if (btnNext)  btnNext.addEventListener('click', () => window.nextExercise && window.nextExercise());
-  if (btnPrev)  btnPrev.addEventListener('click', () => window.prevExercise && window.prevExercise());
-  if (btnPrint) btnPrint.addEventListener('click', () => window.doPrint && window.doPrint());
-
-  // 4) Toggles (rooster tonen / prefill) laten hertekenen
-  const showHelp = byId('show-help');
-  const prefill  = byId('prefill');
-  const rerender = () => (typeof window.renderExercise === 'function') && window.renderExercise();
-  if (showHelp) showHelp.addEventListener('change', rerender);
-  if (prefill)  prefill.addEventListener('change', rerender);
-
-  // 5) Startlabel en eerste set
-  const summary = document.getElementById('diff-summary');
-  if (summary && !summary.textContent.trim()) summary.textContent = 'Moeilijk';
-  if (typeof window.newSet === 'function') window.newSet();
-});
-</script> 
+<body>
 <div class="wrap">
-  <h1>Vermenigvuldigen — oefenen met cijferen</h1>
-  <p class="lead">Natuurlijke én decimale getallen. Eerst schatten, dan cijferen. Rooster zonder komma’s, komma alleen in het eindantwoord.</p>
 
-  <div class="card">
-    <div class="bar">
-      <span class="label">Moeilijkheid:</span>
-      <details id="diff" class="diff">
-        <summary id="diff-summary">Moeilijk</summary>
-        <div class="diff-menu">
-          <button type="button" class="diff-btn" data-diff="makkelijk">
-            <b>Makkelijk</b><span>kleine getallen, max. 1 decimaal</span>
-          </button>
-          <button type="button" class="diff-btn" data-diff="gemiddeld">
-            <b>Gemiddeld</b><span>meer cijfers, max. 2 decimalen</span>
-          </button>
-          <button type="button" class="diff-btn" data-diff="moeilijk">
-            <b>Moeilijk</b><span>grote getallen, tot 2 decimalen</span>
-          </button>
-          <button type="button" class="diff-btn" data-diff="expert">
-            <b>Expert</b><span>groot en/of 2–3 decimalen</span>
-          </button>
-        </div>
-      </details>
+<h1>Vermenigvuldigen — oefenen met cijferen</h1>
 
-      <button id="btn-new" class="btn-main">Nieuwe set (5)</button>
-      <button id="btn-print" class="btn-ghost">Print set (PDF)</button>
-    </div>
+<div class="card">
 
-    <div class="exercise-head">
-      <div class="ex-num" id="ex-num">Oefening 1 van 5</div>
-      <div class="toggles">
-        <label><input type="checkbox" id="prefill"> Rooster vooraf invullen</label>
-        <label><input type="checkbox" id="show-help" checked> Hulplijnen/rooster tonen</label>
-      </div>
-    </div>
+<div class="bar">
+<button id="btn-new">Nieuwe oefening</button>
+<button id="btn-check">Nakijken</button>
+</div>
 
-    <div class="task" id="task-line">—</div>
+<div class="task" id="task">—</div>
 
-    <div class="est">
-      <label><b>Schatting (altijd oké):</b></label>
-      <input type="text" id="est-input" placeholder="bv. 1200 of 12,5" />
-      <button id="btn-start" class="btn-sec">Start oefening</button>
-      <div class="info">Tip: bij decimale getallen negeer je de cijfers na de komma voor je schatting.</div>
-    </div>
+<div>
+<label>Schatting:</label>
+<input id="est" type="text">
+<button id="btn-start">Start</button>
+</div>
 
-    <div id="work-area" style="display:none;">
-      <div class="grid-wrap">
-        <div class="grid-help">Vul het rooster per cijfer: <i>geen komma’s in het rooster</i>. Het eindantwoord vul je mét komma in.</div>
-        <div id="grid-container"></div>
-      </div>
+<div id="work" style="display:none">
 
-      <div class="ans">
-        <label><b>Eindantwoord:</b></label>
-        <input type="text" id="final-answer" placeholder="bv. 123,45" />
-        <button id="btn-check" class="btn-main">Nakijken</button>
-      </div>
+<div id="grid"></div>
 
-      <div id="feedback" class="fb"></div>
+<div style="margin-top:10px">
+<label>Eindantwoord:</label>
+<input id="answer" type="text">
+</div>
 
-      <div class="nav">
-        <button id="btn-prev" class="btn-sec" disabled>Vorige</button>
-        <button id="btn-next" class="btn-sec">Volgende</button>
-      </div>
-    </div>
+<div id="feedback" style="margin-top:10px"></div>
 
-    <div class="legend">
-      <span class="pill">• Schatting eerst invullen → dan pas rooster/antwoord</span>
-      <span class="pill">• Komma’s alleen in het eindantwoord</span>
-      <span class="pill">• Print set = 5 opgaven met roosters</span>
-    </div>
-  </div>
-
-  <!-- Printarea met 5 opgaven en roosters -->
-  <div id="print-area" style="display:none;"></div>
+</div>
+</div>
 </div>
 
 <script>
-/* ===================== CONFIG ===================== */
+/* ================= CONFIG ================= */
+
 const DIFFS = {
-  makkelijk: { aDigits:[1,2], bDigits:[1,2], aDec:[0,1], bDec:[0], bothDec:false },
-  gemiddeld: { aDigits:[2,3], bDigits:[1,3], aDec:[0,1,2], bDec:[0,1], bothDec:false },
-  moeilijk:  { aDigits:[3,5], bDigits:[1,3], aDec:[0,1,2], bDec:[0,1,2], bothDec:true },
-  expert:    { aDigits:[3,6], bDigits:[2,3], aDec:[0,1,2,3], bDec:[0,1,2,3], bothDec:true }
+  makkelijk:{a:[1,2],b:[1,2],dec:[0,1]},
+  gemiddeld:{a:[2,3],b:[1,3],dec:[0,2]},
+  moeilijk:{a:[3,5],b:[2,3],dec:[0,2]}
 };
-// Startniveau
-let currentDiff = 'moeilijk';
 
-// State per set
-let setItems = []; // [{aStr,bStr,aRaw,bRaw,decA,decB, productRaw, productDecs}]
-let answers = [];  // eindantwoord strings
-let estimates = []; // schattingen
-let grids = [];    // ingevulde rooster-digits per item
-let index = 0;     // 0..4
+let diff="moeilijk";
+let current=null;
 
-/* ===================== HELPERS ===================== */
-const $ = sel => document.querySelector(sel);
-function randInt(a,b){ return Math.floor(Math.random()*(b-a+1))+a; }
-function padLeft(str, n, ch){ str=String(str); while(str.length<n) str=ch+str; return str; }
-function onlyDigits(s){ return (s||'').replace(/[^\d]/g,''); }
-function toComma(nStr){ // JS decimaal naar komma
-  return String(nStr).replace('.', ',');
-}
-function fromLocale(s){ // accepteer , of .
-  if(!s) return NaN;
-  s = s.replace(/\s/g,'').replace(',', '.');
-  return Number(s);
-}
-function insertComma(rawStr, decs){ // rawStr = digits only
-  let s = String(rawStr);
-  if(decs<=0) return s;
-  if(s.length<=decs) s = padLeft(s, decs+1, '0');
-  const pos = s.length - decs;
-  return s.slice(0,pos) + ',' + s.slice(pos);
+/* ================= HELPERS ================= */
+
+function rand(a,b){
+  return Math.floor(Math.random()*(b-a+1))+a;
 }
 
-/* ==== getalconstructie: maak string met komma volgens digits & decs ==== */
-function makeNumber(digRange, decRange){
-  const d = randInt(digRange[0], digRange[1]);
-  const decs = decRange[Math.floor(Math.random()*decRange.length)];
-  // maak integer-deel (geen leading zeros behalve 0 zelf)
-  let intMin = Math.pow(10, Math.max(0, d-1));
-  if(d===1) intMin = 0; // laat 0 toe in makkelijk
-  const intMax = Math.pow(10, d)-1;
-  let intPart = String(randInt(intMin, intMax));
-  if(intPart==='0' && d>1) intPart='1'; // beveilig
-  let decPart = '';
-  if(decs>0){
-    decPart = String(randInt(0, Math.pow(10,decs)-1)).padStart(decs,'0');
-  }
-  const shown = decs>0 ? (intPart + ',' + decPart) : intPart;
-  const raw = intPart + decPart; // zonder komma
-  return {shown, raw, decs};
-}
+function makeNumber(dig,dec){
+  const d=rand(dig[0],dig[1]);
+  const decimals=rand(dec[0],dec[1]);
 
-/* ====== set maken: 5 sommen ====== */
-function newSet(){
-  setItems = []; answers = Array(5).fill(''); estimates = Array(5).fill(''); grids = [];
-  for(let i=0;i<5;i++){
-    const cfg = DIFFS[currentDiff];
-    // bepaal of 1 of 2 decimalen aanwezig mogen zijn
-    const both = cfg.bothDec ? (Math.random()<0.55) : false;
-    const a = makeNumber(cfg.aDigits, cfg.aDec);
-    const b = makeNumber(cfg.bDigits, both?cfg.bDec:[0]); // als beide decimaal: bDec vrij; anders 0 of beperkt
-    // zorg dat op zijn minst 1 decimaal soms voorkomt
-    if(!both && a.decs===0 && (Math.random()<0.4) && cfg.bDec.includes(1)){
-      const b2 = makeNumber(cfg.bDigits, [1]);
-      b.shown = b2.shown; b.raw = b2.raw; b.decs = b2.decs;
-    }
-    // raw product
-    const prodRaw = String(Number(a.raw) * Number(b.raw));
-    const prodDecs = a.decs + b.decs;
-    // rooster structuur gebaseerd op digits zonder komma
-    setItems.push({
-      aStr: a.shown, bStr: b.shown,
-      aRaw: a.raw, bRaw: b.raw,
-      decA: a.decs, decB: b.decs,
-      productRaw: prodRaw,
-      productDecs: prodDecs
-    });
-    grids.push(null); // later gevuld na start
-  }
-  index = 0;
-  renderExercise();
-  buildPrintArea();
-}
+  let int=rand(10**(d-1),10**d-1);
 
-/* ====== UI render voor 1 oefening ====== */
-function renderExercise(){
-  const item = setItems[index];
-  $('#ex-num').textContent = `Oefening ${index+1} van 5`;
-  $('#task-line').innerHTML = `<span>${item.aStr}</span><span class="times">×</span><span>${item.bStr}</span> =`;
-  $('#est-input').value = estimates[index] || '';
-  $('#final-answer').value = answers[index] || '';
-  $('#feedback').innerHTML = '';
-  $('#work-area').style.display = (estimates[index] ? 'block' : 'none');
-
-  // rooster tonen?
-  if($('#show-help').checked){
-    buildGrid(item);
-  }else{
-    $('#grid-container').innerHTML = '<div class="warn">Rooster verborgen. Schakel “Hulplijnen/rooster tonen” in om het rooster te zien.</div>';
+  if(decimals===0){
+    return {shown:String(int),raw:String(int),decs:0};
   }
 
-  // knoppen prev/next
-  $('#btn-prev').disabled = (index===0);
-  $('#btn-next').disabled = (index===4);
+  let decPart=String(rand(0,10**decimals-1)).padStart(decimals,"0");
+
+  return {
+    shown:int+","+decPart,
+    raw:String(int)+decPart,
+    decs:decimals
+  };
 }
 
-/* ====== rooster opbouwen (rij per b-digit, uitgelijnd) ====== */
-function buildGrid(item){
-  const prefill = $('#prefill').checked;
-  const aDigits = item.aRaw.split('').map(d=>Number(d));
-  const bDigits = item.bRaw.split('').map(d=>Number(d));
-  // per rij (van onder naar boven bij cijferen): we tonen van boven naar beneden maar uitlijnen naar rechts
-  const rows = bDigits.length;
-  const cols = aDigits.length + 1 + (rows-1); // +1 carry, +shifts
-  // maak correct roosterdata
-  const correct = computePartialTable(aDigits, bDigits);
-  // bewaar lege gridstate als nog niet bestaat
-  if(!grids[index]) grids[index] = correct.map(r=>r.map(_=>'')); // strings
-
-  // als prefill: vul met correcte digits en lock
-  if(prefill){
-    grids[index] = correct.map(r=>r.map(d=>String(d)));
+function insertComma(raw,decs){
+  if(decs===0) return raw;
+  if(raw.length<=decs){
+    raw=raw.padStart(decs+1,"0");
   }
+  return raw.slice(0,-decs)+","+raw.slice(-decs);
+}
 
-  // bouw HTML tabel
-  let html = `<table class="grid"><thead><tr><th></th>`;
-  for(let c=0;c<cols;c++){ html += `<th class="digits-top">${c===cols-1?'…':''}</th>`; }
-  html += `</tr></thead><tbody>`;
+/* ================= NIEUWE OEFENING ================= */
+
+function newExercise(){
+
+  const cfg=DIFFS[diff];
+
+  const a=makeNumber(cfg.a,cfg.dec);
+  const b=makeNumber(cfg.b,cfg.dec);
+
+  const product=String(Number(a.raw)*Number(b.raw));
+  const decs=a.decs+b.decs;
+
+  current={a,b,product,decs};
+
+  document.getElementById("task").textContent=
+    `${a.shown} × ${b.shown} =`;
+
+  document.getElementById("est").value="";
+  document.getElementById("answer").value="";
+  document.getElementById("feedback").innerHTML="";
+  document.getElementById("work").style.display="none";
+
+  buildGrid();
+}
+
+/* ================= ROOSTER ================= */
+
+function buildGrid(){
+
+  const a=current.a.raw.split("");
+  const b=current.b.raw.split("");
+
+  const rows=b.length;
+  const cols=a.length+rows;
+
+  let html="<table class='grid'>";
 
   for(let r=0;r<rows;r++){
-    html += `<tr><td class="row-label">rij ${r+1}</td>`;
+    html+="<tr>";
     for(let c=0;c<cols;c++){
-      const val = grids[index][r][c] || '';
-      const readonly = prefill ? 'readonly' : '';
-      html += `<td class="cell"><input ${readonly} inputmode="numeric" pattern="[0-9]*" maxlength="1" data-r="${r}" data-c="${c}" value="${val}"></td>`;
+      html+=`<td><input></td>`;
     }
-    html += `</tr>`;
+    html+="</tr>";
   }
-  html += `</tbody></table>`;
-  $('#grid-container').innerHTML = html;
 
-  // input listeners
-  document.querySelectorAll('#grid-container input').forEach(inp=>{
-    inp.addEventListener('input', (e)=>{
-      const r = Number(inp.dataset.r), c = Number(inp.dataset.c);
-      inp.value = (inp.value||'').replace(/\D/g,'').slice(0,1);
-      grids[index][r][c] = inp.value;
-    });
-  });
+  html+="</table>";
+
+  document.getElementById("grid").innerHTML=html;
 }
 
-/* ====== bereken juiste rooster (digits) ====== */
-function computePartialTable(aDigits, bDigits){
-  // we bouwen rij voor elke bDigit (van rechts→links), uitgelijnd naar rechts met shifts
-  const aLen = aDigits.length;
-  const rows = [];
-  for(let i=bDigits.length-1; i>=0; i--){
-    const d = bDigits[i];
-    // vermenigvuldig d * aRaw per cijfer (rechts→links)
-    let carry = 0;
-    const rowDigits = [];
-    for(let j=aLen-1; j>=0; j--){
-      const prod = d*aDigits[j] + carry;
-      rowDigits.unshift(prod%10);
-      carry = Math.floor(prod/10);
-    }
-    rowDigits.unshift(carry); // leading carry
-    // shift naar rechts afhankelijk van positie (i vanaf rechts = (bLen-1-i))
-    const shift = (bDigits.length-1 - i);
-    const totalCols = aLen + 1 + (bDigits.length-1);
-    const emptyLeft = totalCols - rowDigits.length - shift;
-    const fullRow = Array(emptyLeft).fill('').concat(rowDigits).concat(Array(shift).fill(''));
-    rows.push(fullRow);
-  }
-  return rows;
-}
+/* ================= START ================= */
 
-/* ====== START: schatting invullen verplicht ====== */
 function startExercise(){
-  const val = $('#est-input').value.trim();
-  if(!val){ alert('Vul eerst je schatting in.'); return; }
-  estimates[index] = val;
-  $('#work-area').style.display = 'block';
+  const est=document.getElementById("est").value.trim();
+  if(!est){
+    alert("Vul eerst je schatting in");
+    return;
+  }
+  document.getElementById("work").style.display="block";
 }
 
-/* ====== Nakijken: controleer eindantwoord (+ roostercellen optioneel) ====== */
+/* ================= NAKIJKEN ================= */
+
 function checkExercise(){
-  const item = setItems[index];
-  const userAns = $('#final-answer').value.trim();
-  answers[index] = userAns;
 
-  // bereken echt product als string met komma
-  const rawProd = String(Number(item.aRaw) * Number(item.bRaw));
-  const realAns = insertComma(rawProd, item.productDecs);
+  const user=document.getElementById("answer").value.trim();
 
-  const fb = [];
-  let ok = false;
+  const correct=insertComma(current.product,current.decs);
 
-  // vergelijk: accepteer komma of punt, leidende nullen negeren
-  const norm = s => s.replace(/\./g,',').replace(/\s/g,'').replace(/^0+(?=\d)/,'');
-  if(norm(userAns) === norm(realAns)){
-    ok = true;
-    fb.push(`<div class="ok">✅ Mooi! Het eindantwoord is correct: <b>${realAns}</b>.</div>`);
+  const fb=document.getElementById("feedback");
+
+  if(user.replace(".",
+  ",")===correct){
+    fb.innerHTML=`<div class="ok">Correct! ${correct}</div>`;
   }else{
-    // check op komma-misser: zelfde cijfers zonder punctuatie?
-    const digitsEqual = onlyDigits(userAns) === onlyDigits(realAns);
-    if(digitsEqual){
-      fb.push(`<div class="warn">⚠ De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Probeer opnieuw: het product heeft <b>${item.productDecs}</b> cijfer(s) na de komma.</div>`);
-    }else{
-      fb.push(`<div class="err">❌ Niet juist. Probeer nog eens. Denk aan de tussenproducten en het correcte aantal kommaplaatsen: <b>${item.productDecs}</b>.</div>`);
-    }
-    fb.push(`<div class="ok">Correct eindantwoord zou zijn: <b>${realAns}</b>.</div>`);
+    fb.innerHTML=`<div class="err">Fout. Correct antwoord: ${correct}</div>`;
   }
-
-  // schatting: analyse
-  const estStr = estimates[index]||'';
-  const estNum = fromLocale(estStr);
-  if(!isNaN(estNum)){
-    const realNum = Number(realAns.replace(',','.'));
-    const dir = estNum===realNum ? 'exact' : (estNum>realNum?'te hoog':'te laag');
-    // “goede schatting”: eerste helft van de cijfers van het antwoord komt overeen (kijk naar integer-deel)
-    const realInt = String(Math.floor(realNum)).replace(/^0+(?=\d)/,'');
-    const estInt  = String(Math.floor(estNum)).replace(/^0+(?=\d)/,'');
-    const half = Math.max(1, Math.ceil(realInt.length/2));
-    const goodLead = realInt.slice(0,half) === estInt.slice(0,half);
-
-    let tip = '';
-    if(!goodLead){
-      tip = `Tip: kijk naar de <b>eerste helft</b> van de cijfers van het (afgeronde) antwoord. Probeer je schatting daarop te laten starten (komma pas op het einde plaatsen).`;
-    }else{
-      tip = `Mooi: de eerste helft van de cijfers zat goed. Controleer daarna enkel nog de <b>kommaplaats</b> — dit product heeft <b>${item.productDecs}</b> kommacijfer(s).`;
-    }
-
-    if(dir==='exact'){
-      fb.push(`<div class="ok">✅ Je schatting is <b>heel goed</b> (exact). ${tip}</div>`);
-    }else{
-      fb.push(`<div class="warn">ℹ Je schatting is <b>${dir}</b>. ${tip}</div>`);
-    }
-  }else{
-    fb.push(`<div class="warn">ℹ Geen geldige schatting herkend. Je mag komma of punt gebruiken (bv. <i>12,5</i>).</div>`);
-  }
-
-  $('#feedback').innerHTML = fb.join('');
-
-  // update printarea (zodat ingevulde antwoorden/schattingen mee kunnen)
-  buildPrintArea();
 }
 
-/* ====== Volgende/Vorige ====== */
-function nextExercise(){ if(index<4){ index++; renderExercise(); } }
-function prevExercise(){ if(index>0){ index--; renderExercise(); } }
+/* ================= EVENTS ================= */
 
-/* ====== Printset: 5 opgaven met roosters (prefill optioneel) ====== */
-function buildPrintArea(){
-  const prefill = $('#prefill').checked;
-  const wrap = [];
-  wrap.push(`<div style="padding:16px"><h2 style="margin:0 0 6px">Vermenigvuldigen — set van 5</h2><div style="font-size:12px;color:#475569">Moeilijkheid: ${$('#diff-summary').textContent}</div></div>`);
-  setItems.forEach((it, idx)=>{
-    // rooster
-    const aDigits = it.aRaw.split('').map(Number);
-    const bDigits = it.bRaw.split('').map(Number);
-    const correct = computePartialTable(aDigits, bDigits);
-    const rows = correct.length;
-    const cols = correct[0].length;
+document.getElementById("btn-new")
+  .addEventListener("click",newExercise);
 
-    wrap.push(`
-      <div style="padding:0 16px 16px 16px; page-break-inside:avoid;">
-        <div style="font-weight:700;font-size:18px;margin:6px 0;">${idx+1}. ${it.aStr} × ${it.bStr} = ________</div>
-        <div style="font-size:13px;color:#475569;margin-bottom:4px">Schatting: ____________________</div>
-        <table style="border-collapse:collapse;width:100%;max-width:680px;">
-          <thead>
-            <tr><th style="border:1px solid #cbd5e1;width:40px;text-align:center;background:#f8fafc;">rij</th>
-              ${Array.from({length:cols}).map(()=>`<th style="border:1px solid #cbd5e1;text-align:center;background:#f8fafc;">&nbsp;</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${Array.from({length:rows}).map((_,r)=>`
-              <tr>
-                <td style="border:1px solid #cbd5e1;text-align:center;background:#f8fafc;">${r+1}</td>
-                ${Array.from({length:cols}).map((__,c)=>{
-                  const val = prefill ? (correct[r][c]!==''? correct[r][c] : '') : '';
-                  return `<td style="border:1px solid #cbd5e1;text-align:center;padding:6px;min-width:24px">${val!==''?`<span style="opacity:.8">${val}</span>`:'&nbsp;'}</td>`;
-                }).join('')}
-              </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>
-    `);
-  });
-  $('#print-area').innerHTML = wrap.join('');
-}
+document.getElementById("btn-start")
+  .addEventListener("click",startExercise);
 
-function doPrint(){
-  // toon printarea
-  $('#print-area').style.display = 'block';
-  window.print();
-  // verberg weer
-  $('#print-area').style.display = 'none';
-}
+document.getElementById("btn-check")
+  .addEventListener("click",checkExercise);
 
-/* ====== EVENTS ====== */
+/* init */
+newExercise();
+</script>
+
+</body>
+</html>
