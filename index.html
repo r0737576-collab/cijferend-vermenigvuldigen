@@ -232,7 +232,17 @@ function checkExercise(){
     }
   }
 }
-
+  
+<script>
+  // Exporteer functies naar window (globale scope)
+  if (typeof newSet === 'function')        window.newSet = newSet;
+  if (typeof render === 'function')        window.render = render;
+  if (typeof startExercise === 'function') window.startExercise = startExercise;
+  if (typeof checkExercise === 'function') window.checkExercise = checkExercise;
+  if (typeof nextEx === 'function')        window.nextEx = nextEx;
+  if (typeof prevEx === 'function')        window.prevEx = prevEx;
+</script>
+  
 /* ================= NAV ================= */
 function nextEx(){ if(index<4){ index++; render(); } }
 function prevEx(){ if(index>0){ index--; render(); } }
@@ -255,5 +265,56 @@ document.getElementById("difficulty").addEventListener("change", (e)=>{
 newSet();
 </script>
 
+  <script>
+  // Laat ons meteen weten als er JS-fouten zijn (F12 → Console)
+  window.onerror = function (msg, src, line, col) {
+    console.log('JS-fout:', msg, '@', src, line + ':' + col);
+  };
+
+  window.addEventListener('DOMContentLoaded', function(){
+    // veiligheid: element bestaat?
+    var btnNew   = document.getElementById('btn-new');
+    var btnPrint = document.getElementById('btn-print');
+    var btnStart = document.getElementById('btn-start');
+    var btnCheck = document.getElementById('btn-check');
+    var btnNext  = document.getElementById('next');
+    var btnPrev  = document.getElementById('prev');
+    var diffSel  = document.getElementById('difficulty');
+
+    if (btnNew) {
+      btnNew.addEventListener('click', function(){
+        console.log('Klik op Nieuwe set → newSet()');
+        if (typeof window.newSet === 'function') {
+          window.newSet();
+        } else {
+          console.log('newSet() niet gevonden op window');
+          alert('Kon newSet() niet vinden — controleer of het exportblok boven dit script staat.');
+        }
+      });
+    }
+
+    if (diffSel) {
+      diffSel.addEventListener('change', function(e){
+        console.log('Moeilijkheid →', e.target.value);
+        // update je eigen diff-variabele én rebuild set
+        try { window.diff = e.target.value; } catch(_) {}
+        if (typeof window.newSet === 'function') window.newSet();
+      });
+    }
+
+    if (btnStart) btnStart.addEventListener('click', function(){ if (typeof window.startExercise === 'function') window.startExercise(); });
+    if (btnCheck) btnCheck.addEventListener('click', function(){ if (typeof window.checkExercise === 'function') window.checkExercise(); });
+    if (btnNext)  btnNext.addEventListener('click', function(){ if (typeof window.nextEx === 'function') window.nextEx(); });
+    if (btnPrev)  btnPrev.addEventListener('click', function(){ if (typeof window.prevEx === 'function') window.prevEx(); });
+    if (btnPrint) btnPrint.addEventListener('click', function(){ window.print(); });
+
+    // Optioneel: meteen bij laden 1 set tonen
+    if (typeof window.newSet === 'function') {
+      console.log('Init → newSet()');
+      window.newSet();
+    }
+  });
+</script>
+  
 </body>
 </html>
