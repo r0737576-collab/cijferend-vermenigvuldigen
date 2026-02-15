@@ -160,7 +160,86 @@ details.diff {
     }
   });
 })();
- <!-- PATCH: alias + definitieve event-binding voor cijferen-tool -->
+<!-- PATCH: alias + definitieve event-binding voor cijferen-tool (vervang je bestaande patch door dit blok) -->
+<script>
+(function(){
+  // Log JS-fouten zichtbaar in de console (F12 → Console)
+  window.onerror = function (message, source, lineno, colno) {
+    console.log("JS-fout:", message, "@", source, lineno + ":" + colno);
+  };
+
+  function safe(fn, label){
+    try { return fn(); } catch(e){ console.log(label || 'Fout', e); alert((label||'Fout') + ': ' + e.message); }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+
+    // 1) Aliassen: oude namen doorverwijzen naar jouw functies
+    try {
+      if (typeof window.newSet === 'function')      window.newExercise = window.newSet;      // alias
+      if (typeof window.checkExercise === 'function') window.grade       = window.checkExercise; // alias
+    } catch(_) {}
+
+    // 2) Moeilijkheidsmenu (custom dropdown)
+    document.querySelectorAll('.diff-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const diff = btn.dataset.diff;
+        if (!diff) return;
+
+        // Summary‑label bijwerken en menu sluiten
+        const summary  = document.getElementById('diff-summary');
+        const details  = document.getElementById('diff');
+        const labelEl  = btn.querySelector('b');
+        if (summary && labelEl) summary.textContent = labelEl.textContent;
+        if (details) details.open = false;
+
+        // Staat aanpassen (zorg dat currentDiff niet const is!)
+        try { window.currentDiff = diff; } catch(e){ console.log('Kon currentDiff niet zetten', e); }
+
+        // Nieuwe set starten
+        if (typeof window.newSet === 'function') {
+          safe(() => window.newSet(), 'Fout bij newSet() na niveau‑keuze');
+        } else {
+          alert('newSet() ontbreekt — controleer of je hoofdscript geladen is.');
+        }
+      });
+    });
+
+    // 3) Hoofdknoppen binden
+    const $ = id => document.getElementById(id);
+    const btnNew   = $('btn-new');
+    const btnStart = $('btn-start');
+    const btnCheck = $('btn-check');
+    const btnNext  = $('btn-next');
+    const btnPrev  = $('btn-prev');
+    const btnPrint = $('btn-print');
+
+    if (btnNew)   btnNew.addEventListener('click',   () => safe(() => window.newSet(),        'newSet()'));
+    if (btnStart) btnStart.addEventListener('click', () => safe(() => window.startExercise(), 'startExercise()'));
+    if (btnCheck) btnCheck.addEventListener('click', () => safe(() => window.checkExercise(), 'checkExercise()'));
+    if (btnNext)  btnNext.addEventListener('click',  () => safe(() => window.nextExercise(),  'nextExercise()'));
+    if (btnPrev)  btnPrev.addEventListener('click',  () => safe(() => window.prevExercise(),  'prevExercise()'));
+    if (btnPrint) btnPrint.addEventListener('click', () => window.print());
+
+    // 4) Toggles (rooster tonen / prefill) direct hertekenen
+    const showHelp = $('show-help');
+    const prefill  = $('prefill');
+    const rerender = () => (typeof window.renderExercise === 'function') && window.renderExercise();
+    if (showHelp) showHelp.addEventListener('change', rerender);
+    if (prefill)  prefill.addEventListener('change', rerender);
+
+    // 5) Startlabel + eerste set (initieel niveau)
+    const summary = document.getElementById('diff-summary');
+    if (summary && !summary.textContent.trim()) summary.textContent = 'Moeilijk';
+
+    if (typeof window.newSet === 'function') {
+      safe(() => window.newSet(), 'Fout bij initiale newSet()');
+    } else {
+      alert('newSet() ontbreekt — controleer of je hoofdscript boven deze patch staat.');
+    }
+  });
+})();
+</script>
 <script>
 window.addEventListener('DOMContentLoaded', () => {
   // 1) Aliassen zodat oudere binds (die newExercise/grade gebruiken) niet crashen
