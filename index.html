@@ -51,14 +51,26 @@
   }
   /* ENKEL de uiterst linkse kolom lichtgrijs (klad/carry) */
   .grid td.first-col input{
-    background:#f1f5f9el fout (na Nakijken) */    background:#f1f5f9; /* lichtgrijs */
+    background:#f1f5f9; /* lichtgrijs */
+    color:#0f172a;
+  }
+
+  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij) */
+  .grid tr.thick-after td  { border-bottom:3px solid #111; }
+  .grid tr.thick-before td { border-top:   3px solid #111; }
+
+  /* Feedback-blokken */
+  .okmsg{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .warnmsg{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .errmsg{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
+
+  /* Per-cel fout (na Nakijken) */
   .badcell input{ background: var(--bad) !important; }
 
   /* Live hints (tijdens invullen) */
   .live-hints{ background:var(--hint); border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:8px; font-size:14px; color:#7c2d12; }
-  .need-zero input{ background: var(--hint) }    /* rechts: 0 verwacht, ontbreekt */
-  .wrong-shift input{ background: var(--hint2) } /* rechts: er staat iets ≠ 0 */
-  .need-space input{ background: var(--hint2) }  /* links: leeg laten */
+  .need-zero input{ background: var(--hint) }  /* rechts: nodig ‘0’ */
+  .need-space input{ background: var(--hint2) }/* links: leeg laten */
 
   /* Som-rij laten knipperen bij verschil met antwoord */
   @keyframes sumRowBlink {
@@ -276,7 +288,7 @@ function buildGrid(item){
   document.getElementById("grid-note").textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // ===== Pijltjes-navigatie =====
+  // ===== Pijltjes-navigatie (factor-rijen als prefill uit, + tussenproducten + som) =====
   const gridEl = document.getElementById('grid');
   gridEl.addEventListener('keydown', (e)=>{
     const t = e.target;
@@ -315,13 +327,7 @@ function buildGrid(item){
   validateLiveHints();
 }
 
-/* === Live hints: vergeten nullen rechts + “anders dan 0” + vergeten “spaties” links === */
-function placeLabel(k){
-  if (k===1) return 'tiental';
-  if (k===2) return 'honderdtal';
-  if (k===3) return 'duizendtal';
-  return `×10^${k}`;
-}
+/* === Live hints: vergeten nullen rechts + vergeten “spaties” links === */
 function validateLiveHints(){
   const table = document.getElementById('grid-table');
   const hintsBox = document.getElementById('live-hints');
@@ -333,9 +339,9 @@ function validateLiveHints(){
   const aLen = aStr.length;
   const bLen = bStr.length;
 
-  // Reset oude hint-markeringen
+  // Verwijder oude hint-markeringen
   table.querySelectorAll('td').forEach(td => {
-    td.classList.remove('need-zero','wrong-shift','need-space');
+    td.classList.remove('need-zero','need-space');
   });
 
   const messages = [];
@@ -343,48 +349,34 @@ function validateLiveHints(){
   for (let r=0; r<bLen; r++){
     const k = r; // shift rechts
     const leftPadsCount = (cols - 1) - (aLen + k);
-
-    /* 1) LINKS: uitlijning — laat links leeg */
+    const coreStart = cols - k - aLen;
+    // 1) Links: pads moeten leeg zijn
     if (leftPadsCount > 0){
-      let anyFilledLeft = false;
+      let anyFilled = false;
       for (let c=1; c<=leftPadsCount; c++){
         const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
         if (inp && (inp.value||'') !== ''){
-          anyFilledLeft = true;
-          inp.parentElement.classList.add('need-space');
+          anyFilled = true;
+          const td = inp.parentElement; if (td) td.classList.add('need-space');
         }
       }
-      if (anyFilledLeft){
+      if (anyFilled){
         messages.push(`Rij ${r+1}: laat links ${leftPadsCount} vakje(s) <b>leeg</b> voor de uitlijning.`);
       }
     }
-
-    /* 2) RECHTS: shift — verwacht 0’en in de laatste k kolommen */
+    // 2) Rechts: shift-cellen moeten 0 zijn
     if (k > 0){
-      let missingZero = false;
-      let wrongValue  = false;
-
+      let anyNotZero = false;
       for (let c=cols-k; c<cols; c++){
         const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-        if (!inp) continue;
-        const val = (inp.value||'');
-
-        if (val === '') {
-          // ontbrekende 0
-          missingZero = true;
-          inp.parentElement.classList.add('need-zero');
-        } else if (val !== '0') {
-          // expliciet "anders dan 0" → toon speciale tip met tiental/honderdtal
-          wrongValue = true;
-          inp.parentElement.classList.add('wrong-shift');
+        const val = inp ? (inp.value||'') : '';
+        if (val !== '0'){
+          anyNotZero = true;
+          const td = inp ? inp.parentElement : null; if (td) td.classList.add('need-zero');
         }
       }
-
-      if (wrongValue){
-        const label = placeLabel(k);
-        messages.push(`Rij ${r+1}: rechts horen ${k} nul(len) te staan, <b>omdat je vermenigvuldigt met een ${label}</b>.`);
-      } else if (missingZero){
-        messages.push(`Rij ${r+1}: vul rechts ${k} <b>nul(len)</b> in.`);
+      if (anyNotZero){
+        messages.push(`Rij ${r+1}: zet rechts ${k} <b>nul(len)</b> (bij ×10/×100/…).`);
       }
     }
   }
@@ -419,7 +411,14 @@ function swapOperands(){
   buildGrid(current);
 }
 
-/* ===== Nakijken (zelfde flow als vorige versie) ===== */
+/* ===== Nakijken =====
+   - Early stop bij leeg antwoord (niets rood/knipperen).
+   - Eindantwoord (OK / kommafout / fout).
+   - Som-rij vs antwoord:
+       • Exact juist → OK + per-cel checks.
+       • Niet exact & som-rij ≠ antwoord → korte melding + som-rij knipperen → STOP (geen per-cel checks, geen juist antwoord).
+       • Niet exact maar som-rij == antwoord → inhoudelijke melding + per-cel checks + dan pas juist antwoord tonen.
+*/
 function checkAnswer(){
   if (!current) return;
 
@@ -435,6 +434,7 @@ function checkAnswer(){
   const userRaw = document.getElementById('answer').value;
   const user = normalizeStudent(userRaw);
 
+  // Early stop bij leeg
   if (!user || !/\d/.test(user)) {
     fbEl.innerHTML = `<div class="warnmsg">Vul eerst je eindantwoord in en probeer opnieuw.</div>`;
     return;
@@ -444,7 +444,7 @@ function checkAnswer(){
   const isExact = normalizeStudent(user) === normalizeStudent(correct);
   const isDigitsOnly = userDigits === correctDigits;
 
-  // Som-rij digits
+  // 1a) Som-rij digits (zoals leerling invult)
   const table = document.getElementById('grid-table');
   let sumStr = '';
   let rSum = null, cols = null;
@@ -466,6 +466,7 @@ function checkAnswer(){
     sumStr = parts.join('').replace(/[^\d]/g,'');
   }
 
+  // 1b) Beslissen wat te tonen
   if (isExact){
     fbEl.innerHTML = `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
     runPerCellChecks();
@@ -473,6 +474,7 @@ function checkAnswer(){
   }
 
   if (!sumStr || sumStr !== userDigits){
+    // → Eerst laten overeenkomen: geen juist antwoord tonen
     fbEl.innerHTML = `<div class="warnmsg">Laat je antwoord overeenkomen met de onderste som‑rij.</div>`;
     if (table && rSum !== null){
       const anyCell = table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
@@ -482,6 +484,7 @@ function checkAnswer(){
     return;
   }
 
+  // Niet exact, maar som-rij == antwoord → inhoudelijke melding + per-cel checks + juist antwoord
   let fbHtml = '';
   if (isDigitsOnly){
     fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
@@ -528,11 +531,13 @@ function checkAnswer(){
         coreDigits[j] = prod % 10;
         carry = Math.floor(prod/10);
       }
+      // core vergelijken
       for (let c=coreStart, idx=0; c<=coreEnd; c++, idx++){
         const want = String(coreDigits[idx]);
         const got  = valAt(r,c);
         if (got !== want) markBad(r,c);
       }
+      // shift (rechts) moet 0 zijn
       for (let c=cols-k; c<cols; c++){
         const want = '0';
         const got  = valAt(r,c);
@@ -612,15 +617,3 @@ window.addEventListener('DOMContentLoaded', ()=>{
 </script>
 </body>
 </html>
-    color:#0f172a;
-  }
-
-  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij) */
-  .grid tr.thick-after td  { border-bottom:3px solid #111; }
-  .grid tr.thick-before td { border-top:   3px solid #111; }
-
-  /* Feedback-blokken */
-  .okmsg{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
-  .warnmsg{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
-  .errmsg{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
-
