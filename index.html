@@ -51,11 +51,10 @@
   }
   /* ENKEL de uiterst linkse kolom lichtgrijs (klad/carry) */
   .grid td.first-col input{
-    background:#f1f5f9; /* lichtgrijs */
-    color:#0f172a;
+    background:#f1f5f9; color:#0f172a;
   }
 
-  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij) */
+  /* Dikke lijnen op rij-niveau (geen extra scheidingsrij!!) */
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
 
@@ -68,9 +67,13 @@
   .badcell input{ background: var(--bad) !important; }
 
   /* Live hints (tijdens invullen) */
-  .live-hints{ background:var(--hint); border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:8px; font-size:14px; color:#7c2d12; }
-  .need-zero input{ background: var(--hint) }  /* rechts: nodig ‘0’ */
-  .need-space input{ background: var(--hint2) }/* links: leeg laten */
+  .live-hints{
+    background:var(--hint);
+    border:1px solid #fed7aa;
+    padding:8px 10px; border-radius:8px;
+    margin-top:8px; font-size:14px; color:#7c2d12;
+  }
+  .wrong-shift input{ background: var(--hint2) !important; } /* rechts: er staat iets ≠ 0 */
 
   /* Som-rij laten knipperen bij verschil met antwoord */
   @keyframes sumRowBlink {
@@ -80,15 +83,6 @@
   .sum-blink td { animation: sumRowBlink 0.9s ease-in-out 4; }
 
   .note{ margin-top:8px; font-size:13px; color:#334155; }
-
-/* Live hint-box en markering voor verkeerde shift-waarden (≠ 0) */
-.live-hints{
-  background:#fff7ed; border:1px solid #fed7aa;
-  padding:8px 10px; border-radius:8px; margin-top:8px;
-  font-size:14px; color:#7c2d12;
-}
-.wrong-shift input{ background:#fef3c7 !important; } /* zacht oranje */
-  
 </style>
 </head>
 <body>
@@ -161,21 +155,17 @@ const DIFF = {
 };
 
 let current = null;           // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
-let currentDiff = 'moeilijk'; // default
-let allowDec = true;          // toggle (decimale getallen)
-let prefillOperands = false;  // toggle (opgave tonen in rooster)
-let allowSwap = false;        // toggle (omdraaien toestaan)
+let currentDiff = 'moeilijk';
+let allowDec = true;
+let prefillOperands = false;
+let allowSwap = false;
 
-/* Maak factor binnen grenzen + decimaalregel (1000 => geen decimalen) */
+/* Getal binnen 10..max, met 0..decMax decim., 1000 => geen decim. */
 function makeNumberBounded(cfg){
   const intPart = randInt(cfg.min, cfg.max);
   let decs = allowDec ? randInt(0, cfg.decMax) : 0;
   if (intPart === cfg.max) decs = 0;
-
-  const decPart = decs > 0
-    ? String(randInt(0, Math.pow(10, decs) - 1)).padStart(decs, '0')
-    : '';
-
+  const decPart = decs>0 ? String(randInt(0,10**decs-1)).padStart(decs,'0') : '';
   const raw = String(intPart) + decPart;
   const shown = formatWithComma(raw, decs);
   return { raw, decs, shown };
@@ -184,18 +174,12 @@ function makeNumberBounded(cfg){
 /* ===== Oefening (1 per keer) ===== */
 function newExercise(){
   const cfg = DIFF[currentDiff] || DIFF.moeilijk;
-
   const a = makeNumberBounded(cfg);
   const b = makeNumberBounded(cfg);
-
   const productRaw  = String(Number(a.raw) * Number(b.raw));
   const productDecs = a.decs + b.decs;
 
-  current = {
-    a:{ raw:a.raw, decs:a.decs },
-    b:{ raw:b.raw, decs:b.decs },
-    productRaw, productDecs
-  };
+  current = { a:{raw:a.raw,decs:a.decs}, b:{raw:b.raw,decs:b.decs}, productRaw, productDecs };
 
   document.getElementById('task').textContent = `${a.shown} × ${b.shown} =`;
   document.getElementById('answer').value = '';
@@ -209,454 +193,113 @@ function newExercise(){
 function buildGrid(item){
   const aDigits = item.a.raw.split('');
   const bDigits = item.b.raw.split('');
-
-  const aLen = aDigits.length;
-  const bLen = bDigits.length;
-  const cols = 1 + aLen + bLen; // 1 grijze + aLen kern + bLen shift
+  const aLen = aDigits.length, bLen = bDigits.length;
+  const cols = 1 + aLen + bLen; // 1 grijs + kern + shift
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
-  // ===== Factor-rij A =====
+  // Factor A
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
-    const first  = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`, 'first-col');
+    const first = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`,'first-col');
     if (prefillOperands){
-      const left  = Array.from({length:blanks}).map(()=>td('')).join('');
-      const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+      const left = Array.from({length:blanks}).map(()=>td('')).join('');
+      const body = aDigits.map(d=>td(`<input value="${d}" readonly>`)).join('');
       return `<tr>${first}${left}${body}</tr>`;
-    } else {
+    }else{
       let rowHtml = '';
-      for (let c=0;c<cols-1;c++){
-        const cc = c+1;
-        rowHtml += td(`<input data-r="-2" data-c="${cc}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
-      }
+      for(let c=1;c<cols;c++) rowHtml += td(`<input data-r="-2" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
       return `<tr>${first}${rowHtml}</tr>`;
     }
   })();
 
-  // ===== Factor-rij B =====
+  // Factor B (+ dikke lijn)
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
-    const first  = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`, 'first-col');
+    const first = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`,'first-col');
     if (prefillOperands){
-      const left  = Array.from({length:blanks}).map(()=>td('')).join('');
-      const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+      const left = Array.from({length:blanks}).map(()=>td('')).join('');
+      const body = bDigits.map(d=>td(`<input value="${d}" readonly>`)).join('');
       return `<tr class="thick-after">${first}${left}${body}</tr>`;
-    } else {
+    }else{
       let rowHtml = '';
-      for (let c=0;c<cols-1;c++){
-        const cc = c+1;
-        rowHtml += td(`<input data-r="-1" data-c="${cc}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
-      }
+      for(let c=1;c<cols;c++) rowHtml += td(`<input data-r="-1" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
       return `<tr class="thick-after">${first}${rowHtml}</tr>`;
     }
   })();
 
-  // ===== Tussenproducten (r = 0..bLen-1) =====
+  // Tussenproducten
   let partials = '';
-  for (let r = 0; r < bLen; r++){
+  for(let r=0;r<bLen;r++){
     let rowHtml = '';
-    for (let c = 0; c < cols; c++){
-      const isFirst = (c === 0);
-      const cls = isFirst ? 'first-col' : '';
-      rowHtml += td(
-        `<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`,
-        cls
-      );
+    for(let c=0;c<cols;c++){
+      const isFirst = (c===0); const cls = isFirst?'first-col':'';
+      rowHtml += td(`<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`, cls);
     }
     partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // ===== Som-rij (r = bLen) =====
+  // Som‑rij (+ dikke lijn)
   const rowSum = (() => {
-    const r = bLen;
-    let rowHtml = '';
-    for (let c = 0; c < cols; c++){
-      const isFirst = (c === 0);
-      const cls = isFirst ? 'first-col' : '';
-      rowHtml += td(
-        `<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`,
-        cls
-      );
+    const r=bLen; let rowHtml='';
+    for(let c=0;c<cols;c++){
+      const isFirst = (c===0); const cls = isFirst?'first-col':'';
+      rowHtml += td(`<input data-r="${r}" data-c="${c}" inputmode="numeric" pattern="[0-9]*" maxlength="1" class="${cls}">`, cls);
     }
     return `<tr class="thick-before">${rowHtml}</tr>`;
   })();
 
-  const html =
-    `<table class="grid" id="grid-table" data-cols="${cols}" data-a="${aDigits.join('')}" data-b="${bDigits.join('')}">
-       ${rowA}
-       ${rowB}
-       ${partials}
-       ${rowSum}
-     </table>`;
-
-  const gridDiv = document.getElementById("grid");
+  const html = `
+    <table class="grid" id="grid-table" data-cols="${cols}" data-a="${aDigits.join('')}" data-b="${bDigits.join('')}">
+      ${rowA}
+      ${rowB}
+      ${partials}
+      ${rowSum}
+    </table>
+  `;
+  const gridDiv = document.getElementById('grid');
   gridDiv.innerHTML = html;
 
-  // ...binnen buildGrid(...) nadat de tabel is gezet:
-  const gridDiv = document.getElementById("grid");
-  gridDiv.innerHTML = html;
-
-  // ▶ Reset de hintbox zodat er niets “blijft staan” na niveau/decimalen wissel
+  // Reset hints bij (her)opbouw
   const hintsBox = document.getElementById('live-hints');
-  if (hintsBox) { hintsBox.style.display = 'none'; hintsBox.innerHTML = ''; }
+  if (hintsBox){ hintsBox.style.display='none'; hintsBox.innerHTML=''; }
 
-  // (hieronder blijven je pijltjestoetsen, event listeners, enz.)
-  // Tipcontrole alleen op input; NIET forceren bij init,
-  // of als je ‘m hier toch wil aanroepen blijft hij nu stil als de vakjes leeg zijn:
-  // validateShiftZerosOnly();
-  
   // Nota
-  document.getElementById("grid-note").textContent =
+  document.getElementById('grid-note').textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // ===== Pijltjes-navigatie (factor-rijen als prefill uit, + tussenproducten + som) =====
+  // Pijltjes‑navigatie
   const gridEl = document.getElementById('grid');
-  gridEl.addEventListener('keydown', (e)=>{
-    const t = e.target;
-    if (!(t instanceof HTMLInputElement)) return;
-
-    const rAttr = t.getAttribute('data-r');
-    const cAttr = t.getAttribute('data-c');
-    if (rAttr === null || cAttr === null) return;
-
-    const r = Number(rAttr), c = Number(cAttr);
-    const table = document.getElementById('grid-table');
-    const colsCount = Number(table.getAttribute('data-cols'));
-
-    const minR = prefillOperands ? 0 : -2;
-    const inputsWithR = gridEl.querySelectorAll('input[data-r]');
-    let maxR = 0;
-    inputsWithR.forEach(inp => { const rv = Number(inp.getAttribute('data-r')); if (!Number.isNaN(rv) && rv > maxR) maxR = rv; });
-
-    let nr = r, nc = c;
-    if (e.key === 'ArrowLeft'){ nc = Math.max(1, c - 1); e.preventDefault(); }
-    else if (e.key === 'ArrowRight'){ nc = Math.min(colsCount-1, c + 1); e.preventDefault(); }
-    else if (e.key === 'ArrowUp'){ nr = Math.max(minR, r - 1); e.preventDefault(); }
-    else if (e.key === 'ArrowDown'){ nr = Math.min(maxR, r + 1); e.preventDefault(); }
-    else { return; }
-
-    const next = gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`);
-    if (next) next.focus();
+  gridEl.addEventListener('keydown',(e)=>{
+    const t=e.target; if(!(t instanceof HTMLInputElement)) return;
+    const rAttr=t.getAttribute('data-r'), cAttr=t.getAttribute('data-c');
+    if(rAttr===null||cAttr===null) return;
+    const r=Number(rAttr), c=Number(cAttr);
+    const table=document.getElementById('grid-table');
+    const colsCount=Number(table.getAttribute('data-cols'));
+    const minR = prefillOperands?0:-2;
+    const inputs = gridEl.querySelectorAll('input[data-r]');
+    let maxR=0; inputs.forEach(inp=>{const rv=Number(inp.getAttribute('data-r')); if(!Number.isNaN(rv)&&rv>maxR) maxR=rv;});
+    let nr=r, nc=c;
+    if(e.key==='ArrowLeft'){ nc=Math.max(1,c-1); e.preventDefault(); }
+    else if(e.key==='ArrowRight'){ nc=Math.min(colsCount-1,c+1); e.preventDefault(); }
+    else if(e.key==='ArrowUp'){ nr=Math.max(minR,r-1); e.preventDefault(); }
+    else if(e.key==='ArrowDown'){ nr=Math.min(maxR,r+1); e.preventDefault(); }
+    else return;
+    const next=gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`); if(next) next.focus();
   });
 
-  /* === LIVE HINTS tijdens invullen === */
-  gridEl.addEventListener('input', (e)=>{
-    if (e.target instanceof HTMLInputElement) validateLiveHints();
-  });
-
-  // Init eerste hints (meestal leeg)
-  validateLiveHints();
+  // Live hints tijdens invullen
+  gridEl.addEventListener('input',(e)=>{ if(e.target instanceof HTMLInputElement) validateShiftZerosOnly(); });
 }
 
-/* === Live hints: vergeten nullen rechts + vergeten “spaties” links === */
-function validateLiveHints(){
-  const table = document.getElementById('grid-table');
-  const hintsBox = document.getElementById('live-hints');
-  if (!table){ hintsBox.style.display='none'; hintsBox.innerHTML=''; return; }
-
-  const cols = Number(table.getAttribute('data-cols'));
-  const aStr = table.getAttribute('data-a') || '';
-  const bStr = table.getAttribute('data-b') || '';
-  const aLen = aStr.length;
-  const bLen = bStr.length;
-
-  // Verwijder oude hint-markeringen
-  table.querySelectorAll('td').forEach(td => {
-    td.classList.remove('need-zero','need-space');
-  });
-
-  const messages = [];
-
-  for (let r=0; r<bLen; r++){
-    const k = r; // shift rechts
-    const leftPadsCount = (cols - 1) - (aLen + k);
-    const coreStart = cols - k - aLen;
-    // 1) Links: pads moeten leeg zijn
-    if (leftPadsCount > 0){
-      let anyFilled = false;
-      for (let c=1; c<=leftPadsCount; c++){
-        const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-        if (inp && (inp.value||'') !== ''){
-          anyFilled = true;
-          const td = inp.parentElement; if (td) td.classList.add('need-space');
-        }
-      }
-      if (anyFilled){
-        messages.push(`Rij ${r+1}: laat links ${leftPadsCount} vakje(s) <b>leeg</b> voor de uitlijning.`);
-      }
-    }
-    // 2) Rechts: shift-cellen moeten 0 zijn
-    if (k > 0){
-      let anyNotZero = false;
-      for (let c=cols-k; c<cols; c++){
-        const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-        const val = inp ? (inp.value||'') : '';
-        if (val !== '0'){
-          anyNotZero = true;
-          const td = inp ? inp.parentElement : null; if (td) td.classList.add('need-zero');
-        }
-      }
-      if (anyNotZero){
-        messages.push(`Rij ${r+1}: zet rechts ${k} <b>nul(len)</b> (bij ×10/×100/…).`);
-      }
-    }
-  }
-
-  if (messages.length){
-    hintsBox.style.display = 'block';
-    hintsBox.innerHTML = '🟠 <b>Tip:</b> ' + messages.join(' ');
-  }else{
-    hintsBox.style.display = 'none';
-    hintsBox.innerHTML = '';
-  }
-}
-
-/* ===== Omdraaien (swap A en B) ===== */
-function updateSwapVisibility(){
-  const btnSwap = document.getElementById('btn-swap');
-  btnSwap.style.display = allowSwap ? 'inline-block' : 'none';
-}
-function swapOperands(){
-  if (!current) return;
-  const tmp = current.a; current.a = current.b; current.b = tmp;
-  current.productRaw  = String(Number(current.a.raw) * Number(current.b.raw));
-  current.productDecs = current.a.decs + current.b.decs;
-
-  const aShown = formatWithComma(current.a.raw, current.a.decs);
-  const bShown = formatWithComma(current.b.raw, current.b.decs);
-  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
-
-  document.getElementById('answer').value = '';
-  document.getElementById('feedback').innerHTML = '';
-
-  buildGrid(current);
-}
-
-/* ===== Nakijken =====
-   - Early stop bij leeg antwoord (niets rood/knipperen).
-   - Eindantwoord (OK / kommafout / fout).
-   - Som-rij vs antwoord:
-       • Exact juist → OK + per-cel checks.
-       • Niet exact & som-rij ≠ antwoord → korte melding + som-rij knipperen → STOP (geen per-cel checks, geen juist antwoord).
-       • Niet exact maar som-rij == antwoord → inhoudelijke melding + per-cel checks + dan pas juist antwoord tonen.
-*/
-function checkAnswer(){
-  if (!current) return;
-
-  const fbEl = document.getElementById('feedback');
-
-  // 0) Oude markeringen/knipper weghalen
-  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
-  document.querySelectorAll('#grid tr.sum-blink').forEach(tr => tr.classList.remove('sum-blink'));
-
-  // 1) Eindantwoord
-  const correct = formatWithComma(current.productRaw, current.productDecs);
-  const correctDigits = onlyDigits(correct);
-  const userRaw = document.getElementById('answer').value;
-  const user = normalizeStudent(userRaw);
-
-  // Early stop bij leeg
-  if (!user || !/\d/.test(user)) {
-    fbEl.innerHTML = `<div class="warnmsg">Vul eerst je eindantwoord in en probeer opnieuw.</div>`;
-    return;
-  }
-
-  const userDigits = onlyDigits(user);
-  const isExact = normalizeStudent(user) === normalizeStudent(correct);
-  const isDigitsOnly = userDigits === correctDigits;
-
-  // 1a) Som-rij digits (zoals leerling invult)
-  const table = document.getElementById('grid-table');
-  let sumStr = '';
-  let rSum = null, cols = null;
-  if (table){
-    cols = Number(table.getAttribute('data-cols'));
-    const inputs = table.querySelectorAll('input[data-r]');
-    let maxR = -Infinity;
-    inputs.forEach(inp => {
-      const rv = Number(inp.getAttribute('data-r'));
-      if (!Number.isNaN(rv) && rv > maxR) maxR = rv;
-    });
-    rSum = maxR;
-
-    const parts = [];
-    for (let c = 1; c < cols; c++){
-      const inp = table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`);
-      if (inp) parts.push((inp.value||'').replace(/[^\d]/g,''));
-    }
-    sumStr = parts.join('').replace(/[^\d]/g,'');
-  }
-
-  // 1b) Beslissen wat te tonen
-  if (isExact){
-    fbEl.innerHTML = `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
-    runPerCellChecks();
-    return;
-  }
-
-  if (!sumStr || sumStr !== userDigits){
-    // → Eerst laten overeenkomen: geen juist antwoord tonen
-    fbEl.innerHTML = `<div class="warnmsg">Laat je antwoord overeenkomen met de onderste som‑rij.</div>`;
-    if (table && rSum !== null){
-      const anyCell = table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
-      const sumTr = anyCell ? anyCell.closest('tr') : null;
-      if (sumTr) sumTr.classList.add('sum-blink');
-    }
-    return;
-  }
-
-  // Niet exact, maar som-rij == antwoord → inhoudelijke melding + per-cel checks + juist antwoord
-  let fbHtml = '';
-  if (isDigitsOnly){
-    fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
-  } else {
-    fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
-  }
-  fbEl.innerHTML = fbHtml;
-  runPerCellChecks();
-
-  /* ===== Hulpfunctie: per-cel checks ===== */
-  function runPerCellChecks(){
-    const table = document.getElementById('grid-table');
-    if (!table) return;
-
-    const cols = Number(table.getAttribute('data-cols'));
-    const aStr = table.getAttribute('data-a');
-    const bStr = table.getAttribute('data-b');
-    const aLen = aStr.length;
-    const bLen = bStr.length;
-
-    const markBad = (r,c)=>{
-      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-      if (inp) inp.parentElement.classList.add('badcell');
-    };
-    const valAt = (r,c)=>{
-      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
-      return inp ? (inp.value||'') : '';
-    };
-
-    const aDigits = aStr.split('').map(d=>Number(d));
-    const bDigits = bStr.split('').map(d=>Number(d));
-
-    // ---- TUSSENPRODUCTEN ----
-    for (let r=0; r<bLen; r++){
-      const k = r;
-      const coreStart = cols - k - aLen;
-      const coreEnd   = cols - k - 1;
-
-      const bDigit = bDigits[bLen-1-r];
-      let carry = 0;
-      const coreDigits = new Array(aLen);
-      for (let j=aLen-1; j>=0; j--){
-        const prod = bDigit * aDigits[j] + carry;
-        coreDigits[j] = prod % 10;
-        carry = Math.floor(prod/10);
-      }
-      // core vergelijken
-      for (let c=coreStart, idx=0; c<=coreEnd; c++, idx++){
-        const want = String(coreDigits[idx]);
-        const got  = valAt(r,c);
-        if (got !== want) markBad(r,c);
-      }
-      // shift (rechts) moet 0 zijn
-      for (let c=cols-k; c<cols; c++){
-        const want = '0';
-        const got  = valAt(r,c);
-        if (got !== want) markBad(r,c);
-      }
-    }
-
-    // ---- SOM-RIJ ----
-    const rSumLocal = bLen;
-    const prod = String(current.productRaw);
-    const L = prod.length;
-    for (let c=1; c<cols; c++){
-      const offsetFromRight = (cols-1) - c;
-      const idx = L-1 - offsetFromRight;
-      if (idx >= 0){
-        const want = prod[idx];
-        const got  = valAt(rSumLocal,c);
-        if (got !== want) markBad(rSumLocal,c);
-      }
-    }
-  }
-}
-
-/* ===== Events ===== */
-function updateSwapVisibility(){
-  const btnSwap = document.getElementById('btn-swap');
-  btnSwap.style.display = allowSwap ? 'inline-block' : 'none';
-}
-function swapOperands(){
-  if (!current) return;
-  const tmp = current.a; current.a = current.b; current.b = tmp;
-  current.productRaw  = String(Number(current.a.raw) * Number(current.b.raw));
-  current.productDecs = current.a.decs + current.b.decs;
-
-  const aShown = formatWithComma(current.a.raw, current.a.decs);
-  const bShown = formatWithComma(current.b.raw, current.b.decs);
-  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
-
-  document.getElementById('answer').value = '';
-  document.getElementById('feedback').innerHTML = '';
-
-  buildGrid(current);
-}
-
-window.addEventListener('DOMContentLoaded', ()=>{
-  // Moeilijkheid + toggles
-  const sel = document.getElementById('difficulty');
-  const chkDec = document.getElementById('allowDec');
-  const chkFill = document.getElementById('prefillOperands');
-  const chkSwap = document.getElementById('allowSwap');
-  const btnSwap = document.getElementById('btn-swap');
-
-  sel.addEventListener('change', () => { currentDiff = sel.value; newExercise(); });
-  chkDec.addEventListener('change', () => { allowDec = chkDec.checked; newExercise(); });
-  chkFill.addEventListener('change', () => { prefillOperands = chkFill.checked; buildGrid(current); validateLiveHints(); });
-  chkSwap.addEventListener('change', () => { allowSwap = chkSwap.checked; updateSwapVisibility(); });
-
-  document.getElementById('btn-new').addEventListener('click', newExercise);
-  document.getElementById('btn-check').addEventListener('click', checkAnswer);
-  btnSwap.addEventListener('click', swapOperands);
-
-  // Enter in antwoordveld = Nakijken
-  const ans = document.getElementById('answer');
-  ans.addEventListener('keydown', (e)=>{
-    if (e.key === 'Enter'){
-      e.preventDefault();
-      checkAnswer();
-    }
-  });
-
-  // Start
-  prefillOperands = false; // standaard UIT
-  allowSwap = false;       // standaard UIT
-  updateSwapVisibility();
-  newExercise();
-});
-
-// Klein hulpmiddel voor nette tekst bij ×10^k
+/* Live hint: enkel bij ≠ 0 in rechter shift-vakken */
 function _placeLabel(k){
   if (k === 1) return 'tiental';
   if (k === 2) return 'honderdtal';
   if (k === 3) return 'duizendtal';
   return `×10^${k}`;
 }
-
-/* Hulptitel voor ×10^k */
-function _placeLabel(k){
-  if (k === 1) return 'tiental';
-  if (k === 2) return 'honderdtal';
-  if (k === 3) return 'duizendtal';
-  return `×10^${k}`;
-}
-
-/**
- * Live-hint: toon alleen wanneer in de rechter shift-vakken iets ≠ '0' staat.
- * Lege vakjes (nog niet ingevuld) geven géén hint.
- */
 function validateShiftZerosOnly() {
   const table = document.getElementById('grid-table');
   const hintsBox = document.getElementById('live-hints');
@@ -671,10 +314,9 @@ function validateShiftZerosOnly() {
 
   const messages = [];
 
-  // r = 0..bLen-1 → tussenproducten; k=r → aantal shifts rechts
   for (let r = 0; r < bLen; r++) {
     const k = r;
-    if (k <= 0) continue; // bij k=0 zijn er geen shift-vakken
+    if (k <= 0) continue; // geen shift-positie
 
     let anyWrong = false;
 
@@ -684,11 +326,10 @@ function validateShiftZerosOnly() {
       if (!inp) continue;
       const val = (inp.value || '').trim();
 
-      // Alleen tip tonen als er iets ANDERS dan '0' staat (niet voor leeg)
+      // Alleen tip bij expliciet ≠ '0' (leeg = nog niks ingevuld → geen tip)
       if (val !== '' && val !== '0') {
         anyWrong = true;
-        const td = inp.parentElement;
-        if (td) td.classList.add('wrong-shift'); // licht oranje markering
+        const td = inp.parentElement; if (td) td.classList.add('wrong-shift');
       }
     }
 
@@ -700,7 +341,6 @@ function validateShiftZerosOnly() {
     }
   }
 
-  // Hintbox tonen of verbergen
   if (messages.length) {
     hintsBox.style.display = 'block';
     hintsBox.innerHTML = '🟠 <b>Tip:</b> ' + messages.join(' ');
@@ -710,6 +350,130 @@ function validateShiftZerosOnly() {
   }
 }
 
+/* Omdraaien */
+function updateSwapVisibility(){ document.getElementById('btn-swap').style.display = allowSwap?'inline-block':'none'; }
+function swapOperands(){
+  if(!current) return;
+  const tmp=current.a; current.a=current.b; current.b=tmp;
+  current.productRaw=String(Number(current.a.raw)*Number(current.b.raw));
+  current.productDecs=current.a.decs+current.b.decs;
+  const aShown=formatWithComma(current.a.raw,current.a.decs);
+  const bShown=formatWithComma(current.b.raw,current.b.decs);
+  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
+  document.getElementById('answer').value=''; document.getElementById('feedback').innerHTML='';
+  buildGrid(current);
+}
+
+/* Nakijken */
+function checkAnswer(){
+  if(!current) return;
+  const fbEl=document.getElementById('feedback');
+
+  // Reset markeringen
+  document.querySelectorAll('#grid td').forEach(td=>td.classList.remove('badcell'));
+  document.querySelectorAll('#grid tr.sum-blink').forEach(tr=>tr.classList.remove('sum-blink'));
+
+  const correct=formatWithComma(current.productRaw,current.productDecs);
+  const correctDigits=onlyDigits(correct);
+  const userRaw=document.getElementById('answer').value;
+  const user=normalizeStudent(userRaw);
+
+  if(!user||!/\d/.test(user)){ fbEl.innerHTML=`<div class="warnmsg">Vul eerst je eindantwoord in en probeer opnieuw.</div>`; return; }
+
+  const userDigits=onlyDigits(user);
+  const isExact=(normalizeStudent(user)===normalizeStudent(correct));
+  const isDigitsOnly=(userDigits===correctDigits);
+
+  // Som‑rij digits (zoals leerling invult)
+  const table=document.getElementById('grid-table');
+  let sumStr=''; let rSum=null; let cols=null;
+  if(table){
+    cols=Number(table.getAttribute('data-cols'));
+    const inputs=table.querySelectorAll('input[data-r]'); let maxR=-Infinity;
+    inputs.forEach(inp=>{ const rv=Number(inp.getAttribute('data-r')); if(!Number.isNaN(rv)&&rv>maxR) maxR=rv; });
+    rSum=maxR;
+    const parts=[];
+    for(let c=1;c<cols;c++){ const inp=table.querySelector(`input[data-r="${rSum}"][data-c="${c}"]`); if(inp) parts.push((inp.value||'').replace(/[^\d]/g,'')); }
+    sumStr=parts.join('').replace(/[^\d]/g,'');
+  }
+
+  if(isExact){
+    fbEl.innerHTML=`<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+    runPerCellChecks(); return;
+  }
+
+  if(!sumStr || sumStr!==userDigits){
+    fbEl.innerHTML=`<div class="warnmsg">Laat je antwoord overeenkomen met de onderste som‑rij.</div>`;
+    if(table && rSum!==null){
+      const anyCell=table.querySelector(`input[data-r="${rSum}"][data-c="1"]`);
+      const sumTr=anyCell?anyCell.closest('tr'):null;
+      if(sumTr) sumTr.classList.add('sum-blink');
+    }
+    return;
+  }
+
+  // Niet exact, som‑rij == antwoord → inhoudelijke feedback + per‑cel checks
+  fbEl.innerHTML = isDigitsOnly
+    ? `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`
+    : `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
+  runPerCellChecks();
+
+  function runPerCellChecks(){
+    const table=document.getElementById('grid-table'); if(!table) return;
+    const cols=Number(table.getAttribute('data-cols'));
+    const aStr=table.getAttribute('data-a'), bStr=table.getAttribute('data-b');
+    const aLen=aStr.length, bLen=bStr.length;
+    const aDigits=aStr.split('').map(d=>Number(d));
+    const bDigits=bStr.split('').map(d=>Number(d));
+    const markBad=(r,c)=>{const inp=table.querySelector(`input[data-r="${r}"][data-c="${c}"]`); if(inp) inp.parentElement.classList.add('badcell');};
+    const valAt=(r,c)=>{const inp=table.querySelector(`input[data-r="${r}"][data-c="${c}"]`); return inp?(inp.value||''):'';};
+
+    // Tussenproducten
+    for(let r=0;r<bLen;r++){
+      const k=r; const coreStart=cols-k-aLen; const coreEnd=cols-k-1;
+      const bDigit=bDigits[bLen-1-r]; let carry=0; const coreDigits=new Array(aLen);
+      for(let j=aLen-1;j>=0;j--){ const prod=bDigit*aDigits[j]+carry; coreDigits[j]=prod%10; carry=Math.floor(prod/10); }
+      for(let c=coreStart,idx=0;c<=coreEnd;c++,idx++){ const want=String(coreDigits[idx]); const got=valAt(r,c); if(got!==want) markBad(r,c); }
+      for(let c=cols-k;c<cols;c++){ const want='0'; const got=valAt(r,c); if(got!==want) markBad(r,c); }
+    }
+
+    // Som‑rij
+    const rSumLocal=bLen; const prod=String(current.productRaw); const L=prod.length;
+    for(let c=1;c<cols;c++){
+      const offset=(cols-1)-c; const idx=L-1-offset;
+      if(idx>=0){ const want=prod[idx]; const got=valAt(rSumLocal,c); if(got!==want) markBad(rSumLocal,c); }
+    }
+  }
+}
+
+/* Events */
+function updateSwapVisibility(){ document.getElementById('btn-swap').style.display = allowSwap?'inline-block':'none'; }
+
+window.addEventListener('DOMContentLoaded', ()=>{
+  const sel=document.getElementById('difficulty');
+  const chkDec=document.getElementById('allowDec');
+  const chkFill=document.getElementById('prefillOperands');
+  const chkSwap=document.getElementById('allowSwap');
+  const btnSwap=document.getElementById('btn-swap');
+
+  sel.addEventListener('change',()=>{ currentDiff=sel.value; newExercise(); });
+  chkDec.addEventListener('change',()=>{ allowDec=chkDec.checked; newExercise(); });
+  chkFill.addEventListener('change',()=>{ prefillOperands=chkFill.checked; buildGrid(current); });
+  chkSwap.addEventListener('change',()=>{ allowSwap=chkSwap.checked; updateSwapVisibility(); });
+
+  document.getElementById('btn-new').addEventListener('click', newExercise);
+  document.getElementById('btn-check').addEventListener('click', checkAnswer);
+  btnSwap.addEventListener('click', swapOperands);
+
+  // Enter = Nakijken
+  document.getElementById('answer').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); checkAnswer(); } });
+
+  // Start
+  prefillOperands=false;
+  allowSwap=false;
+  updateSwapVisibility();
+  newExercise();
+});
 </script>
 </body>
 </html>
