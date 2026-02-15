@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (linkse kolom + invulbare pads)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + linkse kolom)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -17,6 +17,7 @@
   h1{ margin:0 0 8px; font-size:22px; }
   .lead{ margin:0 0 12px; color:var(--muted); }
   .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  select{ padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; background:#fff; }
   button{
     padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
   }
@@ -62,6 +63,15 @@
 
   <div class="card">
     <div class="bar">
+      <label for="difficulty"><b>Moeilijkheid:</b></label>
+      <select id="difficulty">
+        <option value="makkelijk">Makkelijk (10–100, max 1 dec)</option>
+        <option value="gemiddeld">Gemiddeld (10–1000, max 2 dec)</option>
+        <option value="moeilijk" selected>Moeilijk (10–1000, max 3 dec)</option>
+        <option value="natuurlijk">Enkel natuurlijke getallen (10–1000)</option>
+        <option value="compact">Compact (10–100, max 3 dec)</option>
+      </select>
+
       <button id="btn-new">Nieuwe oefening</button>
     </div>
 
@@ -102,26 +112,39 @@ function normalizeStudent(s){
     .replace(/,$/,'');         // losse komma weg
 }
 
+/* ===== Moeilijkheidsconfig ===== */
+const DIFF = {
+  makkelijk: { min:10,  max:100,  decMax:1 },
+  gemiddeld: { min:10,  max:1000, decMax:2 },
+  moeilijk:  { min:10,  max:1000, decMax:3 },
+  natuurlijk:{ min:10,  max:1000, decMax:0 },
+  compact:   { min:10,  max:100,  decMax:3 }
+};
+
+let current = null;          // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
+let currentDiff = 'moeilijk';
+
+/* Maak factor binnen grenzen + decimalenregel (1000 => geen decimalen) */
+function makeNumberBounded(cfg){
+  const intPart = randInt(cfg.min, cfg.max);
+  let decs = randInt(0, cfg.decMax);
+  if (intPart === cfg.max) decs = 0; // 1000,xxx > 1000 → niet toegestaan
+
+  const decPart = decs > 0
+    ? String(randInt(0, Math.pow(10, decs) - 1)).padStart(decs, '0')
+    : '';
+
+  const raw = String(intPart) + decPart;       // digits only
+  const shown = formatWithComma(raw, decs);    // met komma voor display
+  return { raw, decs, shown };
+}
+
 /* ===== Oefening (1 per keer) ===== */
-let current = null; // { a:{raw,decs}, b:{raw,decs}, productRaw, productDecs }
-
 function newExercise(){
-  // Beide factoren in [10, 1000] met 0..3 decimalen; 1000 heeft geen decimalen
-  function makeBoundedNumber(){
-    const intPart = randInt(10, 1000);
-    let decs = randInt(0, 3);
-    if (intPart === 1000) decs = 0; // 1000,xxx > 1000 → niet toegestaan
+  const cfg = DIFF[currentDiff] || DIFF.moeilijk;
 
-    const decPart = decs > 0
-      ? String(randInt(0, Math.pow(10, decs) - 1)).padStart(decs, '0')
-      : '';
-
-    const raw = String(intPart) + decPart; // digits only
-    return { raw, decs, shown: formatWithComma(raw, decs) };
-  }
-
-  const a = makeBoundedNumber();
-  const b = makeBoundedNumber();
+  const a = makeNumberBounded(cfg);
+  const b = makeNumberBounded(cfg);
 
   const productRaw  = String(Number(a.raw) * Number(b.raw));
   const productDecs = a.decs + b.decs;
@@ -162,6 +185,7 @@ function buildGrid(item){
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
 
+  // Rij 1: factor A (rechts uitgelijnd; linkse grijze kolom readonly)
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
@@ -170,14 +194,16 @@ function buildGrid(item){
     return `<tr>${first}${left}${body}</tr>`;
   })();
 
+  // Rij 2: factor B (rechts uitgelijnd; linkse grijze kolom readonly) + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
     const left  = Array.from({length:blanks}).map(()=>td('')).join('');
     const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr class="thick-after">${first}${left}${body}</tr>`;
+    return `<tr class="thick-after">${first}{left}${body}</tr>`.replace('{left}', left);
   })();
 
+  // bLen rijen tussenproducten: linkse grijze kolom + invulbare pads + core + shift
   let partials = '';
   for (let k = 0; k < bLen; k++){
     const leftPadsCount = (cols - 1) - (aLen + k);
@@ -195,6 +221,7 @@ function buildGrid(item){
     partials += `<tr>${first}${leftPads}${core}${shift}</tr>`;
   }
 
+  // Som-rij: linkse grijze kolom + rest invulbaar, dikke lijn erboven
   const rowSum = (() => {
     const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
     const rest  = Array.from({length:cols-1})
@@ -239,6 +266,13 @@ function checkAnswer(){
 
 /* ===== Events ===== */
 window.addEventListener('DOMContentLoaded', ()=>{
+  // Moeilijkheid
+  const sel = document.getElementById('difficulty');
+  sel.addEventListener('change', () => {
+    currentDiff = sel.value;
+    newExercise();
+  });
+
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
   newExercise();
