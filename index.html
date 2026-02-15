@@ -73,7 +73,15 @@
     padding:8px 10px; border-radius:8px;
     margin-top:8px; font-size:14px; color:#7c2d12;
   }
-  .wrong-shift input{ background: var(--hint2) !important; } /* rechts: er staat iets ≠ 0 */
+
+  /* Shift-vakjes (≠ 0) rood laten knipperen tot het hersteld is */
+  @keyframes needZeroBlink {
+    0%, 100% { background-color: var(--bad); }
+    50%      { background-color: transparent; }
+  }
+  .blink-zero input{
+    animation: needZeroBlink 0.9s ease-in-out infinite;
+  }
 
   /* Som-rij laten knipperen bij verschil met antwoord */
   @keyframes sumRowBlink {
@@ -268,7 +276,7 @@ function buildGrid(item){
   document.getElementById('grid-note').textContent =
     'Opmerking: de lichtgrijze vakjes in de uiterst linkse kolom zijn bedoeld om tijdelijk meeneemcijfers (“onthouden”) te noteren.';
 
-  // Pijltjes‑navigatie
+  // Pijltjestoets‑navigatie
   const gridEl = document.getElementById('grid');
   gridEl.addEventListener('keydown',(e)=>{
     const t=e.target; if(!(t instanceof HTMLInputElement)) return;
@@ -293,12 +301,17 @@ function buildGrid(item){
   gridEl.addEventListener('input',(e)=>{ if(e.target instanceof HTMLInputElement) validateShiftZerosOnly(); });
 }
 
-/* Live hint: enkel bij ≠ 0 in rechter shift-vakken */
-function _placeLabel(k){
+/* Live hint: enkel bij ≠ 0 in rechter shift-vakken (knipper rood + correcte tekst) */
+function placeLabel(k){
   if (k === 1) return 'tiental';
   if (k === 2) return 'honderdtal';
   if (k === 3) return 'duizendtal';
   return `×10^${k}`;
+}
+function zerosGrammar(k){
+  const verb  = (k === 1) ? 'hoort' : 'horen';
+  const count = (k === 1) ? '1 nul' : `${k} nullen`;
+  return { verb, count };
 }
 function validateShiftZerosOnly() {
   const table = document.getElementById('grid-table');
@@ -310,13 +323,13 @@ function validateShiftZerosOnly() {
   const bLen = bStr.length;
 
   // Reset oude markeringen
-  table.querySelectorAll('td').forEach(td => td.classList.remove('wrong-shift'));
+  table.querySelectorAll('td').forEach(td => td.classList.remove('blink-zero'));
 
   const messages = [];
 
   for (let r = 0; r < bLen; r++) {
-    const k = r;
-    if (k <= 0) continue; // geen shift-positie
+    const k = r;               // aantal shifts rechts
+    if (k <= 0) continue;      // geen shift-positie
 
     let anyWrong = false;
 
@@ -329,14 +342,15 @@ function validateShiftZerosOnly() {
       // Alleen tip bij expliciet ≠ '0' (leeg = nog niks ingevuld → geen tip)
       if (val !== '' && val !== '0') {
         anyWrong = true;
-        const td = inp.parentElement; if (td) td.classList.add('wrong-shift');
+        const td = inp.parentElement; if (td) td.classList.add('blink-zero'); // rood knipperen
       }
     }
 
     if (anyWrong) {
+      const {verb, count} = zerosGrammar(k);
       messages.push(
-        `Rij ${r + 1}: rechts horen ${k} nul(len) te staan, ` +
-        `<b>omdat je vermenigvuldigt met een ${_placeLabel(k)}</b>.`
+        `Rij ${r + 1}: rechts ${verb} ${count} te staan, ` +
+        `<b>omdat je vermenigvuldigt met een ${placeLabel(k)}</b>.`
       );
     }
   }
