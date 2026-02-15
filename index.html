@@ -88,6 +88,7 @@
   #print-area{ margin-top:14px; }
   .print-ex{ page-break-inside: avoid; margin: 0 0 18px; }
   .print-ex h3{ margin:0 0 6px; font-size:16px; font-weight:700; }
+  .print-ex h3 .ans { font-weight:700; } /* Antwoord vet in de titel */
   .pgrid{ border-collapse: collapse; }
   .pgrid td{
     border:1px solid #999;
@@ -153,7 +154,7 @@
 
     <div id="feedback"></div>
 
-    <!-- PRINT: de set wordt hier in @media print getoond -->
+    <!-- Printset wordt in @media print getoond -->
     <div id="print-area" class="print-only"></div>
   </div>
 
@@ -198,7 +199,7 @@ let prefillOperands = false;
 let allowSwap = false;
 
 let setMode = false;
-let currentSet = [];    // array van 5 opgaven (zelfde structuur als current + optioneel .cols/.aLen/.bLen/.grid/.answer)
+let currentSet = [];    // 5 opgaven
 let setIndex = 0;
 
 /* Getal volgens instellingen */
@@ -267,7 +268,6 @@ function updateSetUI(){
   }
 }
 function showSetExercise(i){
-  // laad i‑de opgave in current en teken
   const item = currentSet[i];
   current = { a:{raw:item.a.raw,decs:item.a.decs},
               b:{raw:item.b.raw,decs:item.b.decs},
@@ -277,9 +277,7 @@ function showSetExercise(i){
   document.getElementById('feedback').innerHTML = '';
   buildGrid(current);
 
-  // reeds opgeslagen rooster terugplaatsen
   restoreGridValues(item.grid);
-  // antwoord herstellen
   document.getElementById('answer').value = item.answer || '';
 
   updateSwapVisibility();
@@ -314,7 +312,6 @@ function restoreGridValues(map){
     const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
     if (inp) inp.value = map[key];
   });
-  // Live hints her-evalueren na herstel
   validateShiftZerosOnly();
 }
 
@@ -568,7 +565,6 @@ function renderStaticGridFilled(item, mapValues){
     if (prefillOperands){
       return `<tr>${first}${Array.from({length:blanks}).map(()=>td()).join('')}${aDigits.map(d=>td(d)).join('')}</tr>`;
     } else {
-      // lees ingevulde studentencijfers op data-r=-2, c=1..cols-1
       const cells = Array.from({length:cols-1}).map((_,i)=>td(g(-2, i+1))).join('');
       return `<tr>${first}${cells}</tr>`;
     }
@@ -614,7 +610,12 @@ function renderStaticGridFilled(item, mapValues){
 function renderPrintSet(){
   // Maak statische set (gevuld waar leerling iets invulde)
   const html = currentSet.map((it,i)=> {
-    const title = `${i+1}. ${formatWithComma(it.a.raw,it.a.decs)} × ${formatWithComma(it.b.raw,it.b.decs)} =`;
+    const shownA = formatWithComma(it.a.raw,it.a.decs);
+    const shownB = formatWithComma(it.b.raw,it.b.decs);
+    const titleLeft = `${i+1}. ${shownA} × ${shownB}`;
+    const ans = (it.answer || '').trim();
+    const title = ans ? `${titleLeft} <span class="ans">= ${ans}</span>` : `${titleLeft} =`;
+
     return `
       <div class="print-ex">
         <h3>${title}</h3>
@@ -625,7 +626,7 @@ function renderPrintSet(){
 
   const printArea = document.getElementById('print-area');
   const printArea2 = document.getElementById('print-area-standalone');
-  if (printArea) printArea.innerHTML = html;
+  if (printArea)  printArea.innerHTML  = html;
   if (printArea2) printArea2.innerHTML = html;
 }
 
@@ -638,47 +639,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   const chkFill=document.getElementById('prefillOperands');
   const chkSwap=document.getElementById('allowSwap');
 
-  sel.addEventListener('change',()=>{ currentDiff=sel.value; if(setMode){ /* laat huidige set ongemoeid */ } newExercise(); });
-  chkDec.addEventListener('change',()=>{ allowDec=chkDec.checked; if(setMode){ /* set ongemoeid */ } newExercise(); });
-  chkFill.addEventListener('change',()=>{ prefillOperands=chkFill.checked; buildGrid(current); /* herteken */ });
-  chkSwap.addEventListener('change',()=>{ allowSwap=chkSwap.checked; updateSwapVisibility(); });
-
-  document.getElementById('btn-new').addEventListener('click', newExercise);
-  document.getElementById('btn-check').addEventListener('click', checkAnswer);
-  document.getElementById('btn-swap').addEventListener('click', swapOperands);
-
-  // Set‑knoppen
-  document.getElementById('btn-newset').addEventListener('click', ()=>{ startNewSet(); });
-  document.getElementById('btn-prev').addEventListener('click', ()=>{
-    if(!setMode) return;
-    saveCurrentIntoSet();
-    if(setIndex>0){ setIndex--; showSetExercise(setIndex); }
-  });
-  document.getElementById('btn-next').addEventListener('click', ()=>{
-    if(!setMode) return;
-    saveCurrentIntoSet();
-    if(setIndex<4){ setIndex++; showSetExercise(setIndex); }
-  });
-
-  // Print
-  document.getElementById('btn-printset').addEventListener('click', ()=>{
-    if(setMode){ saveCurrentIntoSet(); }
-    if(currentSet.length===0){
-      // Geen set? Maak er snel één aan met huidige instellingen
-      startNewSet(); saveCurrentIntoSet();
-    }
-    renderPrintSet();
-    window.print();
-  });
-
-  // Enter = Nakijken
-  document.getElementById('answer').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); checkAnswer(); } });
-
-  // Start
-  prefillOperands=false;
-  allowSwap=false;
-  updateSwapVisibility();
-  newExercise();
+  sel.addEventListener('change',()=>{ currentDiff=sel.value; if(setMode){ /* set behouden */ } newExercise(); });
+  chkDec addEventListener
 });
 </script>
 </body>
