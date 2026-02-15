@@ -3,11 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (moeilijkheid + toggles + pijltjes + omdraaien)</title>
+<title>Vermenigvuldigen — cijferen (moeilijkheid + toggles + pijltjes + omdraaien + check tussenstappen)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
     --line:#cbd5e1; --accent:#2563eb; --muted:#4b5563;
+    --bad:#fde8e8; --good:#e6f7f1;
   }
   *{ box-sizing:border-box; }
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
@@ -34,7 +35,7 @@
   }
   .task-label{ font-size:24px; font-weight:700; }
   .task-ans{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-  #btn-swap{ background:#374151; } /* subtiel onderscheid voor de omdraai-knop */
+  #btn-swap{ background:#374151; }
 
   /* --- Rooster --- */
   .grid{ border-collapse:collapse; margin-top:8px; }
@@ -58,9 +59,13 @@
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
   .grid tr.thick-before td { border-top:   3px solid #111; }
 
-  .ok{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
-  .err{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
-  .warn{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  /* Feedback */
+  .okmsg{ background:#e6f7f1; border:1px solid #c7ecde; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .warnmsg{ background:#fff7ed; border:1px solid #fed7aa; padding:8px 10px; border-radius:8px; margin-top:10px; }
+  .errmsg{ background:#fde8e8; border:1px solid #f7caca; padding:8px 10px; border-radius:8px; margin-top:10px; }
+
+  /* Foutieve cel lichtrood */
+  .badcell input{ background: var(--bad) !important; }
   .note{ margin-top:8px; font-size:13px; color:#334155; }
 </style>
 </head>
@@ -123,6 +128,7 @@ function normalizeStudent(s){
     .replace(/,?0+$/,'')       // trailing nullen in decimalen
     .replace(/,$/,'');         // losse komma weg
 }
+function onlyDigits(s){ return String(s||'').replace(/[^\d]/g,''); }
 
 /* ===== Moeilijkheidsconfig ===== */
 const DIFF = {
@@ -179,55 +185,61 @@ function newExercise(){
 /* ===== Rooster =====
    Kolommen: 1 (linkse klad/carry) + aLen + (shift rechts) --> cols = 1 + aLen + bLen
    Rijen:
-   1) factor A (prefill aan = readonly cijfers; uit = lege invulcellen), rechts uitgelijnd
+   1) factor A (prefill aan = readonly cijfers; uit = lege invulcellen met pijltjesnavigatie)
    2) factor B (idem) + dikke lijn eronder
    3) bLen rijen tussenproducten (invulbaar), met shift
-      - kolom 0: grijze (invulbare) klad/carry
-      - links van het core-blok: invulbare pads (normale kleur)
-      - core-blok: aLen invulbare inputs
-      - rechts: k invulbare shift-inputs
-   4) som-rij (invulbaar), met dikke lijn erboven; kolom 0 grijs invulbaar
-   ▸ Pijltjes-navigatie op alle inputs met data-r/data-c (tussenproducten + som).
+   4) som-rij (invulbaar), met dikke lijn erboven
+   ▸ Pijltjesnavigatie: alle inputs met data-r/data-c (incl. factor-rijen wanneer prefill uit)
 */
 function buildGrid(item){
-  const aDigits = item.a.raw.split('').map(Number);
-  const bDigits = item.b.raw.split('').map(Number);
+  const aDigits = item.a.raw.split('');
+  const bDigits = item.b.raw.split('');
+
   const aLen = aDigits.length;
   const bLen = bDigits.length;
-
-  const cols = 1 + aLen + bLen;
+  const cols = 1 + aLen + bLen; // 1 grijze + aLen kern + bLen shift
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
-  const emptyInputs = (n) => Array.from({length:n}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
 
-  // Factor-rij (1): A
+  // ===== Factor-rij A =====
   const rowA = (() => {
     const blanks = (cols - 1) - aLen;
-    const first  = td(`<input class="first-col" value="" readonly>`, 'first-col');
+    const first  = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`, 'first-col');
     if (prefillOperands){
       const left  = Array.from({length:blanks}).map(()=>td('')).join('');
       const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
       return `<tr>${first}${left}${body}</tr>`;
     } else {
-      // Leerlingen vullen zelf alle kolommen (behalve 1e grijze) in
-      return `<tr>${first}${emptyInputs(cols-1)}</tr>`;
+      // pijltjesnavigatie: data-r = -2
+      let rowHtml = '';
+      for (let c=0;c<cols-1;c++){
+        const cc = c+1; // kolom 1..cols-1 (kolom 0 is de grijze)
+        rowHtml += td(`<input data-r="-2" data-c="${cc}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      }
+      return `<tr>${first}${rowHtml}</tr>`;
     }
   })();
 
-  // Factor-rij (2): B + dikke lijn eronder
+  // ===== Factor-rij B =====
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
-    const first  = td(`<input class="first-col" value="" readonly>`, 'first-col');
+    const first  = td(`<input class="first-col" value="" ${prefillOperands?'readonly':''}>`, 'first-col');
     if (prefillOperands){
       const left  = Array.from({length:blanks}).map(()=>td('')).join('');
       const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
       return `<tr class="thick-after">${first}${left}${body}</tr>`;
     } else {
-      return `<tr class="thick-after">${first}${emptyInputs(cols-1)}</tr>`;
+      // pijltjesnavigatie: data-r = -1
+      let rowHtml = '';
+      for (let c=0;c<cols-1;c++){
+        const cc = c+1;
+        rowHtml += td(`<input data-r="-1" data-c="${cc}" inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+      }
+      return `<tr class="thick-after">${first}${rowHtml}</tr>`;
     }
   })();
 
-  // Tussenproducten (r = 0..bLen-1): alle kolommen invulbaar met data-r/c
+  // ===== Tussenproducten (r = 0..bLen-1) =====
   let partials = '';
   for (let r = 0; r < bLen; r++){
     let rowHtml = '';
@@ -242,7 +254,7 @@ function buildGrid(item){
     partials += `<tr>${rowHtml}</tr>`;
   }
 
-  // Som-rij (r = bLen)
+  // ===== Som-rij (r = bLen) =====
   const rowSum = (() => {
     const r = bLen;
     let rowHtml = '';
@@ -258,14 +270,15 @@ function buildGrid(item){
   })();
 
   const html =
-    `<table class="grid">
+    `<table class="grid" id="grid-table" data-cols="${cols}" data-a="${aDigits.join('')}" data-b="${bDigits.join('')}">
        ${rowA}
        ${rowB}
        ${partials}
        ${rowSum}
      </table>`;
 
-  document.getElementById("grid").innerHTML = html;
+  const gridDiv = document.getElementById("grid");
+  gridDiv.innerHTML = html;
 
   // Korte nota
   document.getElementById("grid-note").textContent =
@@ -276,17 +289,29 @@ function buildGrid(item){
   gridEl.addEventListener('keydown', (e)=>{
     const t = e.target;
     if (!(t instanceof HTMLInputElement)) return;
-    const r = Number(t.getAttribute('data-r'));
-    const c = Number(t.getAttribute('data-c'));
-    if (Number.isNaN(r) || Number.isNaN(c)) return; // alleen tussenproducten + som
 
-    const maxR = bLen;       // tussenproducten 0..bLen-1, som = bLen
-    const maxC = cols - 1;
+    const rAttr = t.getAttribute('data-r');
+    const cAttr = t.getAttribute('data-c');
+    if (rAttr === null || cAttr === null) return; // alleen inputs met data-r/c
+
+    const r = Number(rAttr), c = Number(cAttr);
+    const table = document.getElementById('grid-table');
+    const colsCount = Number(table.getAttribute('data-cols'));
+    const bLen = Number(table.querySelectorAll('tr').length) - 3; // ruwe schatting is niet nodig; we weten maxR elders
+
+    const minR = prefillOperands ? 0 : -2;  // als prefill uit: factor-rijen (-2, -1) ook navigeren
+    const maxR = (()=> {
+      // som-rij staat op index bLen
+      let max = 0;
+      // lees grootste r uit inputs
+      const last = gridEl.querySelector('input[data-r]:last-of-type');
+      return last ? Number(last.getAttribute('data-r')) : (prefillOperands? bLen : bLen);
+    })();
 
     let nr = r, nc = c;
     if (e.key === 'ArrowLeft'){ nc = Math.max(0, c - 1); e.preventDefault(); }
-    else if (e.key === 'ArrowRight'){ nc = Math.min(maxC, c + 1); e.preventDefault(); }
-    else if (e.key === 'ArrowUp'){ nr = Math.max(0, r - 1); e.preventDefault(); }
+    else if (e.key === 'ArrowRight'){ nc = Math.min(colsCount-1, c + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowUp'){ nr = Math.max(minR, r - 1); e.preventDefault(); }
     else if (e.key === 'ArrowDown'){ nr = Math.min(maxR, r + 1); e.preventDefault(); }
     else { return; }
 
@@ -302,47 +327,144 @@ function updateSwapVisibility(){
 }
 function swapOperands(){
   if (!current) return;
-  // wissel a en b
   const tmp = current.a; current.a = current.b; current.b = tmp;
-  // herbereken product-meta (productRaw is gelijk maar veilig opnieuw)
   current.productRaw  = String(Number(current.a.raw) * Number(current.b.raw));
   current.productDecs = current.a.decs + current.b.decs;
 
-  // opgave hertekenen
   const aShown = formatWithComma(current.a.raw, current.a.decs);
   const bShown = formatWithComma(current.b.raw, current.b.decs);
   document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
 
-  // antwoord/feedback leegmaken (rooster is veranderd qua rijen/shifts)
   document.getElementById('answer').value = '';
   document.getElementById('feedback').innerHTML = '';
 
-  // rooster opnieuw opbouwen
   buildGrid(current);
 }
 
-/* ===== Nakijken (alleen eindantwoord) ===== */
+/* ===== Nakijken =====
+   - Eindantwoord (zoals eerder)
+   - Tussenstappen:
+     • Voor elke tussenproduct-rij r (0=onderste): core + shift worden vergeleken
+       - core (aLen cellen): b_r × A (mod 10), carries verwerkt; leading carry valt links en wordt niet beoordeeld
+       - shift (k=r cellen rechts): verwacht 0
+     • Som-rij (r=bLen): rechts uitgelijnd productRaw; links daarvan niet beoordeeld
+     • Links klad/carry-kolom en linker pads worden niet beoordeeld
+*/
 function checkAnswer(){
   if (!current) return;
+
+  /* 1) Eindantwoord */
   const correct = formatWithComma(current.productRaw, current.productDecs);
   const user = normalizeStudent(document.getElementById('answer').value);
+  const fbEl = document.getElementById('feedback');
 
+  let fbHtml = '';
   if (!user){
-    document.getElementById('feedback').innerHTML = `<div class="warn">Vul eerst je antwoord in.</div>`;
-    return;
-  }
-  const onlyDigits = s => String(s).replace(/[^\d]/g,'');
-  if (normalizeStudent(user) === normalizeStudent(correct)){
-    document.getElementById('feedback').innerHTML = `<div class="ok">✔ Correct! Antwoord: <b>${correct}</b></div>`;
+    fbHtml += `<div class="warnmsg">Vul eerst je antwoord in.</div>`;
+  } else if (normalizeStudent(user) === normalizeStudent(correct)){
+    fbHtml += `<div class="okmsg">✔ Correct! Antwoord: <b>${correct}</b></div>`;
   } else if (onlyDigits(user) === onlyDigits(correct)){
-    document.getElementById('feedback').innerHTML =
-      `<div class="warn">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
+    fbHtml += `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`;
   } else {
-    document.getElementById('feedback').innerHTML = `<div class="err">Niet juist. Correct: <b>${correct}</b>.</div>`;
+    fbHtml += `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
   }
+
+  /* 2) Tussenstappen nakijken */
+  // Clear oude bad-markeringen
+  document.querySelectorAll('#grid td').forEach(td => td.classList.remove('badcell'));
+
+  const table = document.getElementById('grid-table');
+  if (table){
+    const cols = Number(table.getAttribute('data-cols'));
+    const aStr = table.getAttribute('data-a'); // digits only
+    const bStr = table.getAttribute('data-b');
+    const aLen = aStr.length;
+    const bLen = bStr.length;
+
+    // helper: markeer cel (r,c) bad
+    const markBad = (r,c)=>{
+      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+      if (inp) inp.parentElement.classList.add('badcell');
+    };
+    const valAt = (r,c)=>{
+      const inp = table.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+      return inp ? (inp.value||'') : '';
+    };
+
+    // aDigits (array numbers), bDigits (array numbers)
+    const aDigits = aStr.split('').map(d=>Number(d));
+    const bDigits = bStr.split('').map(d=>Number(d));
+
+    // ---- TUSSENPRODUCTEN ----
+    for (let r=0; r<bLen; r++){
+      const k = r;                          // shift rechts
+      const coreStart = cols - k - aLen;    // eerste kolom van core
+      const coreEnd   = cols - k - 1;       // laatste kolom van core
+
+      const bDigit = bDigits[bLen-1-r];     // onderaan = eenheden van B
+      // reken core uit: bDigit * A, neem enkel laatste aLen cijfers; leading carry valt links
+      let carry = 0;
+      const coreDigits = new Array(aLen);
+      for (let j=aLen-1; j>=0; j--){
+        const prod = bDigit * aDigits[j] + carry;
+        coreDigits[j] = prod % 10;
+        carry = Math.floor(prod/10);
+      }
+      // core vergelijken
+      for (let c=coreStart, idx=0; c<=coreEnd; c++, idx++){
+        const want = String(coreDigits[idx]);
+        const got  = valAt(r,c);
+        if (got !== want) markBad(r,c);
+      }
+      // shift vergelijken (verwacht 0)
+      for (let c=cols-k; c<cols; c++){
+        const want = '0';
+        const got  = valAt(r,c);
+        if (got !== want) markBad(r,c);
+      }
+      // links van core (c=0..coreStart-1) NIET beoordelen (klad/carry/pads)
+    }
+
+    // ---- SOM-RIJ ----
+    const rSum = bLen;
+    const prod = String(current.productRaw); // digits only
+    const L = prod.length;
+    // rechts uitlijnen over kolommen 1..cols-1
+    for (let c=1; c<cols; c++){
+      const offsetFromRight = (cols-1) - c;         // 0 voor laatste kolom
+      const idx = L-1 - offsetFromRight;            // index in product
+      if (idx >= 0){
+        const want = prod[idx];
+        const got  = valAt(rSum,c);
+        if (got !== want) markBad(rSum,c);
+      } // links vóór het product niet beoordelen
+    }
+  }
+
+  fbEl.innerHTML = fbHtml;
 }
 
 /* ===== Events ===== */
+function updateSwapVisibility(){
+  const btnSwap = document.getElementById('btn-swap');
+  btnSwap.style.display = allowSwap ? 'inline-block' : 'none';
+}
+function swapOperands(){
+  if (!current) return;
+  const tmp = current.a; current.a = current.b; current.b = tmp;
+  current.productRaw  = String(Number(current.a.raw) * Number(current.b.raw));
+  current.productDecs = current.a.decs + current.b.decs;
+
+  const aShown = formatWithComma(current.a.raw, current.a.decs);
+  const bShown = formatWithComma(current.b.raw, current.b.decs);
+  document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
+
+  document.getElementById('answer').value = '';
+  document.getElementById('feedback').innerHTML = '';
+
+  buildGrid(current);
+}
+
 window.addEventListener('DOMContentLoaded', ()=>{
   // Moeilijkheid + toggles
   const sel = document.getElementById('difficulty');
