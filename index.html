@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (strikt rooster)</title>
+<title>Vermenigvuldigen — cijferen (carry-kolom links)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -51,7 +51,7 @@
 <body>
 <div class="wrap">
   <h1>Vermenigvuldigen — cijferen</h1>
-  <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij.</p>
+  <p class="lead">2 rijen voor de factoren (zonder komma), dikke lijn, evenveel rijen als cijfers van de 2e factor (tussenproducten), dikke lijn, 1 som-rij. <b>Nu met linkse carry-kolom.</b></p>
 
   <div class="card">
     <div class="bar">
@@ -138,11 +138,12 @@ function newExercise(){
 }
 
 /* ===== Rooster =====
+   Kolommen: (carry links) + aLen + (shift) → we kiezen cols = aLen + bLen + 1
    Rijen:
    1) factor A (readonly, rechts uitgelijnd)
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
-   3) bLen rijen tussenproducten (invulbaar), met shift — en nu zijn ook de shift-vakjes RECHTS invulbaar (voor 0)
-   4) som-rij (invulbaar), met dikke lijn erboven
+   3) bLen rijen tussenproducten (invulbaar), met shift — inclusief linkse carry-invulvak
+   4) som-rij (invulbaar), met dikke lijn erboven — inclusief linkse carry-invulvak
 */
 function buildGrid(item){
   const aDigits = item.a.raw.split('').map(Number);
@@ -150,45 +151,48 @@ function buildGrid(item){
   const aLen = aDigits.length;
   const bLen = bDigits.length;
 
-  // kolommen: genoeg ruimte voor alle shifts
-  const cols = aLen + bLen;
+  // +1 kolom voor linkse carry in tussenproducten/som
+  const cols = aLen + bLen + 1;
 
   const td = (html='') => `<td>${html}</td>`;
   const emptyCells = n => Array.from({length:n}).map(()=>td('')).join('');
 
-  // Rij 1: factor A (rechts uitgelijnd)
+  // Rij 1: factor A (rechts uitgelijnd over alle kolommen)
   const rowA = (() => {
     const blanks = cols - aLen;
-    const cells = emptyCells(blanks)
-      + aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    const cells = emptyCells(blanks) +
+      aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr>${cells}</tr>`;
   })();
 
   // Rij 2: factor B (rechts uitgelijnd) + dikke lijn eronder
   const rowB = (() => {
     const blanks = cols - bLen;
-    const cells = emptyCells(blanks)
-      + bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    const cells = emptyCells(blanks) +
+      bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
     return `<tr class="thick-after">${cells}</tr>`;
   })();
 
-  // bLen rijen: tussenproducten — nu met invulbare shift-vakjes rechts (zodat leerlingen 0 kunnen zetten)
+  // bLen rijen tussenproducten:
+  // links: (cols - (1 + aLen + k)) lege cellen, dan 1 carry-input, dan aLen inputs, dan k shift-inputs
   let partials = '';
   for (let k = 0; k < bLen; k++){
-    const blanksLeft  = cols - aLen - k; // links houden we leeg om rechts uit te lijnen
+    const blanksLeft  = cols - (1 + aLen + k);
+    const carryInput  = td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
     const coreInputs  = Array.from({length:aLen})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
     const shiftInputs = Array.from({length:k})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    const row = emptyCells(blanksLeft) + coreInputs + shiftInputs;
+    const row = emptyCells(blanksLeft) + carryInput + coreInputs + shiftInputs;
     partials += `<tr>${row}</tr>`;
   }
 
-  // Som-rij: invulbaar, dikke lijn erboven
+  // Som-rij: dikke lijn erboven, zelfde structuur: 1 carry + (cols-1) invulbaar
   const rowSum = (() => {
-    const cells = Array.from({length:cols})
+    const carryInput = td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`);
+    const restInputs = Array.from({length:cols-1})
       .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    return `<tr class="thick-before">${cells}</tr>`;
+    return `<tr class="thick-before">${carryInput}${restInputs}</tr>`;
   })();
 
   const html =
@@ -199,7 +203,7 @@ function buildGrid(item){
        ${rowSum}
      </table>`;
 
-  document.getElementById('grid').innerHTML = html;
+  document.getElementById("grid").innerHTML = html;
 }
 
 /* ===== Nakijken (alleen eindantwoord) ===== */
@@ -230,5 +234,8 @@ window.addEventListener('DOMContentLoaded', ()=>{
   newExercise();
 });
 </script>
+</body>
+</html>
+
 </body>
 </html>
