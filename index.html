@@ -3,16 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (live hints + checks)</title>
+<title>Vermenigvuldigen — cijferen (set van 5 + print)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
     --line:#cbd5e1; --accent:#2563eb; --muted:#4b5563;
     --bad:#fde8e8; --good:#e6f7f1; --hint:#fff7ed; --hint2:#fef3c7;
+    --firstcol:#f1f5f9;
   }
   *{ box-sizing:border-box; }
   body{ margin:0; background:var(--bg); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
-  .wrap{ max-width:900px; margin:auto; padding:20px; }
+  .wrap{ max-width:1000px; margin:auto; padding:20px; }
   .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.06); }
 
   h1{ margin:0 0 8px; font-size:22px; }
@@ -20,6 +21,7 @@
   .bar{ display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
   .bar select, .bar input[type="checkbox"]{ transform: translateY(1px); }
   .bar label{ color:#0f172a; }
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin:8px 0 0; }
 
   button{
     padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
@@ -37,7 +39,7 @@
   .task-ans{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
   #btn-swap{ background:#374151; }
 
-  /* --- Rooster --- */
+  /* --- Rooster (scherm) --- */
   .grid{ border-collapse:collapse; margin-top:8px; }
   .grid td{
     border:1px solid var(--line);
@@ -50,9 +52,7 @@
     text-align:center; font-size:16px;
   }
   /* ENKEL de uiterst linkse kolom lichtgrijs (klad/carry) */
-  .grid td.first-col input{
-    background:#f1f5f9; color:#0f172a;
-  }
+  .grid td.first-col input{ background:var(--firstcol); color:#0f172a; }
 
   /* Dikke lijnen op rij-niveau (geen extra scheidingsrij!!) */
   .grid tr.thick-after td  { border-bottom:3px solid #111; }
@@ -66,24 +66,20 @@
   /* Per-cel fout (na Nakijken) */
   .badcell input{ background: var(--bad) !important; }
 
-  /* Live hints (tijdens invullen) */
+  /* Live hints (optioneel, behouden) */
   .live-hints{
     background:var(--hint);
     border:1px solid #fed7aa;
     padding:8px 10px; border-radius:8px;
     margin-top:8px; font-size:14px; color:#7c2d12;
   }
-
-  /* Shift-vakjes (≠ 0) rood laten knipperen tot het hersteld is */
   @keyframes needZeroBlink {
     0%, 100% { background-color: var(--bad); }
     50%      { background-color: transparent; }
   }
-  .blink-zero input{
-    animation: needZeroBlink 0.9s ease-in-out infinite;
-  }
+  .blink-zero input{ animation: needZeroBlink 0.9s ease-in-out infinite; }
 
-  /* Som-rij laten knipperen bij verschil met antwoord */
+  /* Som-rij knipperen bij mismatch met antwoord */
   @keyframes sumRowBlink {
     0%, 100% { background-color: var(--bad); }
     50%      { background-color: transparent; }
@@ -91,13 +87,38 @@
   .sum-blink td { animation: sumRowBlink 0.9s ease-in-out 4; }
 
   .note{ margin-top:8px; font-size:13px; color:#334155; }
+
+  /* =============== PRINT SET =============== */
+  .print-only{ display:none; }
+  .screen-only{ display:block; }
+
+  #print-area{ margin-top:14px; }
+  .print-ex{ page-break-inside: avoid; margin: 0 0 18px; }
+  .print-ex h3{ margin:0 0 6px; font-size:16px; font-weight:700; }
+  .pgrid{ border-collapse: collapse; }
+  .pgrid td{
+    border:1px solid #999;
+    width:26px; height:28px; text-align:center; vertical-align:middle;
+  }
+  .pgrid .first-col{ background:var(--firstcol); }
+  .pgrid tr.thick-after td{ border-bottom:3px solid #000; }
+  .pgrid tr.thick-before td{ border-top:3px solid #000; }
+
+  @media print{
+    @page{ margin:12mm; }
+    .screen-only{ display:none !important; }
+    .print-only{ display:block !important; }
+    body{ background:#fff; }
+    .pgrid td{ border-color:#000; }
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Vermenigvuldigen — cijferen</h1>
 
-  <div class="card">
+  <!-- ======== SCHERM-DEEL ======== -->
+  <div class="card screen-only">
     <!-- Moeilijkheid + toggles -->
     <div class="bar">
       <label for="difficulty"><b>Moeilijkheid:</b></label>
@@ -110,8 +131,13 @@
       <label><input type="checkbox" id="allowDec" checked> Decimale getallen toestaan</label>
       <label><input type="checkbox" id="prefillOperands"> Opgave in rooster tonen</label>
       <label><input type="checkbox" id="allowSwap"> Omdraaien toestaan</label>
+    </div>
 
+    <!-- Acties -->
+    <div class="actions">
       <button id="btn-new">Nieuwe oefening</button>
+      <button id="btn-newset">Nieuwe set (5)</button>
+      <button id="btn-printset">Print set</button>
     </div>
 
     <!-- Opgave + inline antwoord + omdraaien -->
@@ -129,7 +155,14 @@
     <div id="live-hints" class="live-hints" style="display:none"></div>
 
     <div id="feedback"></div>
+
+    <!-- Voorbeeld van de set (zodat je kan printen) -->
+    <div id="print-area" class="print-only"></div>
+    <div id="print-preview" class="screen-only" style="margin-top:14px;"></div>
   </div>
+
+  <!-- ======== PRINT-ALLEEN (fallback container) ======== -->
+  <div id="print-area-standalone" class="print-only"></div>
 </div>
 
 <script>
@@ -167,6 +200,8 @@ let currentDiff = 'moeilijk';
 let allowDec = true;
 let prefillOperands = false;
 let allowSwap = false;
+
+let currentSet = [];          // array van 5 items in hetzelfde formaat als current
 
 /* Getal binnen 10..max, met 0..decMax decim., 1000 => geen decim. */
 function makeNumberBounded(cfg){
@@ -297,7 +332,7 @@ function buildGrid(item){
     const next=gridEl.querySelector(`input[data-r="${nr}"][data-c="${nc}"]`); if(next) next.focus();
   });
 
-  // Live hints tijdens invullen
+  // Live hints tijdens invullen (alleen shift ≠ 0)
   gridEl.addEventListener('input',(e)=>{ if(e.target instanceof HTMLInputElement) validateShiftZerosOnly(); });
 }
 
@@ -349,8 +384,7 @@ function validateShiftZerosOnly() {
     if (anyWrong) {
       const {verb, count} = zerosGrammar(k);
       messages.push(
-        `Rij ${r + 1}: rechts ${verb} ${count} te staan, ` +
-        `<b>omdat je vermenigvuldigt met een ${placeLabel(k)}</b>.`
+        `Rij ${r + 1}: rechts ${verb} ${count} te staan, <b>omdat je vermenigvuldigt met een ${placeLabel(k)}</b>.`
       );
     }
   }
@@ -374,11 +408,12 @@ function swapOperands(){
   const aShown=formatWithComma(current.a.raw,current.a.decs);
   const bShown=formatWithComma(current.b.raw,current.b.decs);
   document.getElementById('task').textContent = `${aShown} × ${bShown} =`;
-  document.getElementById('answer').value=''; document.getElementById('feedback').innerHTML='';
+  document.getElementById('answer').value='';
+  document.getElementById('feedback').innerHTML='';
   buildGrid(current);
 }
 
-/* Nakijken */
+/* Nakijken (ongewijzigde flow) */
 function checkAnswer(){
   if(!current) return;
   const fbEl=document.getElementById('feedback');
@@ -426,7 +461,6 @@ function checkAnswer(){
     return;
   }
 
-  // Niet exact, som‑rij == antwoord → inhoudelijke feedback + per‑cel checks
   fbEl.innerHTML = isDigitsOnly
     ? `<div class="warnmsg">De cijfers kloppen, maar de <b>komma</b> lijkt verkeerd geplaatst. Correct: <b>${correct}</b>.</div>`
     : `<div class="errmsg">Niet juist. Correct: <b>${correct}</b>.</div>`;
@@ -460,7 +494,104 @@ function checkAnswer(){
   }
 }
 
-/* Events */
+/* ===== Set van 5 + Print ===== */
+function buildSet(n=5){
+  currentSet = [];
+  const cfg = DIFF[currentDiff] || DIFF.moeilijk;
+  for(let i=0;i<n;i++){
+    const a = makeNumberBounded(cfg);
+    const b = makeNumberBounded(cfg);
+    const productRaw  = String(Number(a.raw) * Number(b.raw));
+    const productDecs = a.decs + b.decs;
+    currentSet.push({
+      a:{ raw:a.raw, decs:a.decs, shown:a.shown },
+      b:{ raw:b.raw, decs:b.decs, shown:b.shown },
+      productRaw, productDecs
+    });
+  }
+  renderPrintSet();  // toon voorbeeld
+}
+
+/* Render één statisch (print) rooster (zonder inputs) */
+function renderStaticGrid(item, prefill){
+  const aDigits = item.a.raw.split('');
+  const bDigits = item.b.raw.split('');
+  const aLen = aDigits.length, bLen = bDigits.length;
+  const cols = 1 + aLen + bLen; // 1 grijs + kern + shift
+
+  const td = (txt='', cls='') => `<td class="${cls}">${txt}</td>`;
+  const blanks = (n) => Array.from({length:n}).map(()=>td()).join('');
+
+  // Factor A
+  const rowA = (() => {
+    const leftPads = (cols - 1) - aLen;
+    const first = td('', 'first-col');
+    if (prefill){
+      return `<tr>${first}${blanks(leftPads)}${aDigits.map(d=>td(d)).join('')}</tr>`;
+    }else{
+      return `<tr>${first}${blanks(cols-1)}</tr>`;
+    }
+  })();
+
+  // Factor B + dikke lijn eronder
+  const rowB = (() => {
+    const leftPads = (cols - 1) - bLen;
+    const first = td('', 'first-col');
+    if (prefill){
+      return `<tr class="thick-after">${first}${blanks(leftPads)}${bDigits.map(d=>td(d)).join('')}</tr>`;
+    }else{
+      return `<tr class="thick-after">${first}${blanks(cols-1)}</tr>`;
+    }
+  })();
+
+  // Tussenproducten (leeg, maar met shift-structuur als raster)
+  let partials = '';
+  for (let r=0;r<bLen;r++){
+    const row = Array.from({length:cols}).map((_,c)=>td('', c===0?'first-col':'' )).join('');
+    partials += `<tr>${row}</tr>`;
+  }
+
+  // Som-rij + dikke lijn erboven (leeg)
+  const rowSum = (() => {
+    const row = Array.from({length:cols}).map((_,c)=>td('', c===0?'first-col':'' )).join('');
+    return `<tr class="thick-before">${row}</tr>`;
+  })();
+
+  return `
+    <table class="pgrid">
+      ${rowA}
+      ${rowB}
+      ${partials}
+      ${rowSum}
+    </table>
+  `;
+}
+
+/* Render de hele set (voorbeeld op scherm + print-blok) */
+function renderPrintSet(){
+  const prefill = prefillOperands; // zelfde instelling toepassen
+  const makeEx = (item, idx) => `
+    <div class="print-ex">
+      <h3>${idx+1}. ${formatWithComma(item.a.raw, item.a.decs)} × ${formatWithComma(item.b.raw, item.b.decs)} =</h3>
+      ${renderStaticGrid(item, prefill)}
+    </div>
+  `;
+
+  // Schermvoorbeeld
+  const preview = document.getElementById('print-preview');
+  if (preview){
+    preview.innerHTML = currentSet.map((it, i)=>makeEx(it, i)).join('');
+  }
+
+  // Print-area (zichtbaar in @media print)
+  const printArea = document.getElementById('print-area');
+  const printArea2 = document.getElementById('print-area-standalone'); // fallback (als screen-only container niet aanwezig is)
+  const html = currentSet.map((it, i)=>makeEx(it, i)).join('');
+  if (printArea) printArea.innerHTML = html;
+  if (printArea2) printArea2.innerHTML = html;
+}
+
+/* ===== Events ===== */
 function updateSwapVisibility(){ document.getElementById('btn-swap').style.display = allowSwap?'inline-block':'none'; }
 
 window.addEventListener('DOMContentLoaded', ()=>{
@@ -478,6 +609,18 @@ window.addEventListener('DOMContentLoaded', ()=>{
   document.getElementById('btn-new').addEventListener('click', newExercise);
   document.getElementById('btn-check').addEventListener('click', checkAnswer);
   btnSwap.addEventListener('click', swapOperands);
+
+  // Set van 5
+  document.getElementById('btn-newset').addEventListener('click', ()=>{
+    buildSet(5);
+    // Scroll naar voorbeeld
+    const prev = document.getElementById('print-preview');
+    if (prev) prev.scrollIntoView({behavior:'smooth', block:'start'});
+  });
+  document.getElementById('btn-printset').addEventListener('click', ()=>{
+    if (currentSet.length === 0) buildSet(5);
+    window.print();
+  });
 
   // Enter = Nakijken
   document.getElementById('answer').addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ e.preventDefault(); checkAnswer(); } });
