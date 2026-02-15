@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Vermenigvuldigen — cijferen (linkse kolom lichtgrijs)</title>
+<title>Vermenigvuldigen — cijferen (linkse kolommen invulbaar)</title>
 <style>
   :root{
     --bg:#f7f8fb; --card:#ffffff; --ink:#111;
@@ -14,16 +14,7 @@
   .wrap{ max-width:900px; margin:auto; padding:20px; }
   .card{ background:#fff; border:1px solid #e5e7eb; border-radius:12px; padding:16px; box-shadow:0 6px 20px rgba(0,0,0,.06); }
 
-  h1{ margin:0 0 8px; font-size:22px; }
-  .lead{ margin:0 0 12px; color:var(--muted); }
-  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
-  button{
-    padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
-  }
-  input[type="text"]{
-    padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
-  }
-  .task{ font-size:24px; font-weight:700; margin:12px 0; }
+  h1{ margin font-size:24px; font-weight:700; margin:12px 0; }  h1{ margin:0 0 8px; font-size:22px; }
   .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:8px 0; }
 
   /* --- Rooster --- */
@@ -150,8 +141,11 @@ function newExercise(){
    Rijen:
    1) factor A (readonly, rechts uitgelijnd)
    2) factor B (readonly, rechts uitgelijnd) + dikke lijn eronder
-   3) bLen rijen tussenproducten (invulbaar), met shift; UITSLUITEND de uiterst linkse kolom lichtgrijs
-   4) som-rij (invulbaar), met dikke lijn erboven; linkse kolom grijs
+   3) bLen rijen tussenproducten (invulbaar), met shift
+      - kolom 0: grijze (invulbare) klad/carry
+      - daarachter ZOWEL de linkse uitlijn-vakjes als het core-blok invulbaar
+      - shift rechts invulbaar
+   4) som-rij (invulbaar), met dikke lijn erboven; kolom 0 grijs invulbaar
 */
 function buildGrid(item){
   const aDigits = item.a.raw.split('').map(Number);
@@ -163,43 +157,54 @@ function buildGrid(item){
   const cols = 1 + aLen + bLen;
 
   const td = (html='', cls='') => `<td class="${cls}">${html}</td>`;
-  const emptyCells = n => Array.from({length:n}).map(()=>td('')).join('');
 
-  // Rij 1: factor A (rechts uitgelijnd over de laatste aLen kolommen; linkse kolom is grijze input readonly)
+  // Rij 1: factor A (rechts uitgelijnd over de laatste aLen kolommen; linkse grijze kolom readonly)
   const rowA = (() => {
-    const blanks = (cols - 1) - aLen; // -1 wegens de eerste kolom die al ingevuld wordt
+    const blanks = (cols - 1) - aLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
-    const body  = emptyCells(blanks) + aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr>${first}${body}</tr>`;
+    const left  = Array.from({length:blanks}).map(()=>td('')).join(''); // factor-rij: geen klad nodig
+    const body  = aDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    return `<tr>${first}${left}${body}</tr>`;
   })();
 
   // Rij 2: factor B (idem) + dikke lijn eronder
   const rowB = (() => {
     const blanks = (cols - 1) - bLen;
     const first = td(`<input class="first-col" value="" readonly>`, 'first-col');
-    const body  = emptyCells(blanks) + bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
-    return `<tr class="thick-after">${first}${body}</tr>`;
+    const left  = Array.from({length:blanks}).map(()=>td('')).join('');
+    const body  = bDigits.map(d => td(`<input value="${d}" readonly>`)).join('');
+    return `<tr class="thick-after">${first}${left}${body}</tr>`;
   })();
 
   // bLen rijen tussenproducten:
-  // - kolom 0: grijze input (invulbaar)
-  // - daarna: (cols - 1 - (aLen + k)) lege cellen links, dan aLen invulbare inputs, dan k invulbare shift-inputs
+  // - kolom 0: grijze klad/carry (invulbaar)
+  // - links van het core-blok: invulbare pads (normale kleur)
+  // - core-blok: aLen invulbare inputs
+  // - rechts: k invulbare shift-inputs
   let partials = '';
   for (let k = 0; k < bLen; k++){
-    const leftBlanks = (cols - 1) - (aLen + k);
+    const leftPadsCount = (cols - 1) - (aLen + k);
     const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
-    const left  = emptyCells(leftBlanks);
-    const core  = Array.from({length:aLen}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    const shift = Array.from({length:k}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
-    partials += `<tr>${first}${left}${core}${shift}</tr>`;
+
+    const leftPads = Array.from({length:leftPadsCount})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+
+    const core  = Array.from({length:aLen})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+
+    const shift = Array.from({length:k})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+
+    partials += `<tr>${first}${leftPads}${core}${shift}</tr>`;
   }
 
   // Som-rij:
-  // - kolom 0: grijze input
+  // - kolom 0: grijze klad/carry (invulbaar)
   // - rest: invulbaar
   const rowSum = (() => {
     const first = td(`<input class="first-col" inputmode="numeric" pattern="[0-9]*" maxlength="1">`, 'first-col');
-    const rest  = Array.from({length:cols-1}).map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
+    const rest  = Array.from({length:cols-1})
+      .map(()=>td(`<input inputmode="numeric" pattern="[0-9]*" maxlength="1">`)).join('');
     return `<tr class="thick-before">${first}${rest}</tr>`;
   })();
 
@@ -248,3 +253,11 @@ window.addEventListener('DOMContentLoaded', ()=>{
 </script>
 </body>
 </html>
+  .lead{ margin:0 0 12px; color:var(--muted); }
+  .bar{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:10px; }
+  button{
+    padding:10px 14px; border:none; border-radius:8px; background:var(--accent); color:#fff; font-weight:600; cursor:pointer;
+  }
+  input[type="text"]{
+    padding:8px 10px; border:1px solid #e5e7eb; border-radius:8px; min-width:200px; font-size:16px;
+  }
