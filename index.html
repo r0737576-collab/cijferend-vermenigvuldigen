@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="nl">
 <head>
+<body>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>Oefenen: Vermenigvuldigen (natuurlijk & decimaal)</title>
@@ -105,7 +106,7 @@ details.diff {
 }  
 </style>
 </head>
-<body>
+</body>
   <!-- AUTO-BIND FIX: plak dit net voor </body> -->
 <script>
 (function(){
@@ -159,6 +160,69 @@ details.diff {
     }
   });
 })();
+ <!-- PATCH: alias + definitieve event-binding voor cijferen-tool -->
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  // 1) Aliassen zodat oudere binds (die newExercise/grade gebruiken) niet crashen
+  try {
+    if (typeof window.newSet === 'function') {
+      window.newExercise = window.newSet;       // alias
+    }
+    if (typeof window.checkExercise === 'function') {
+      window.grade = window.checkExercise;      // alias
+    }
+  } catch(_) {}
+
+  // 2) Moeilijkheidsmenu (custom dropdown) klikbaar maken
+  document.querySelectorAll('.diff-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const diff = btn.dataset.diff;
+      if (diff) {
+        // pas label aan in summary
+        const summary = document.getElementById('diff-summary');
+        const titleEl = btn.querySelector('b');
+        if (summary && titleEl) summary.textContent = titleEl.textContent;
+
+        // stel diff in en sluit menu
+        const detailsEl = document.getElementById('diff');
+        if (detailsEl) detailsEl.open = false;
+
+        // zet state en bouw nieuwe set
+        try { window.currentDiff = diff; } catch(_) {}
+        if (typeof window.newSet === 'function') window.newSet();
+      }
+    });
+  });
+
+  // 3) Hoofdknoppen binden
+  const byId = id => document.getElementById(id);
+  const btnNew   = byId('btn-new');
+  const btnStart = byId('btn-start');
+  const btnCheck = byId('btn-check');
+  const btnNext  = byId('btn-next');
+  const btnPrev  = byId('btn-prev');
+  const btnPrint = byId('btn-print');
+
+  if (btnNew)   btnNew.addEventListener('click', () => window.newSet && window.newSet());
+  if (btnStart) btnStart.addEventListener('click', () => window.startExercise && window.startExercise());
+  if (btnCheck) btnCheck.addEventListener('click', () => window.checkExercise && window.checkExercise());
+  if (btnNext)  btnNext.addEventListener('click', () => window.nextExercise && window.nextExercise());
+  if (btnPrev)  btnPrev.addEventListener('click', () => window.prevExercise && window.prevExercise());
+  if (btnPrint) btnPrint.addEventListener('click', () => window.doPrint && window.doPrint());
+
+  // 4) Toggles (rooster tonen / prefill) laten hertekenen
+  const showHelp = byId('show-help');
+  const prefill  = byId('prefill');
+  const rerender = () => (typeof window.renderExercise === 'function') && window.renderExercise();
+  if (showHelp) showHelp.addEventListener('change', rerender);
+  if (prefill)  prefill.addEventListener('change', rerender);
+
+  // 5) Startlabel en eerste set
+  const summary = document.getElementById('diff-summary');
+  if (summary && !summary.textContent.trim()) summary.textContent = 'Moeilijk';
+  if (typeof window.newSet === 'function') window.newSet();
+});
+</script> 
 </script>
 <div class="wrap">
   <h1>Vermenigvuldigen — oefenen met cijferen</h1>
